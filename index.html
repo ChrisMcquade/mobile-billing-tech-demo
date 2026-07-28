@@ -1,0 +1,2984 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billing comprehension in the digital channel — voice plus generative UI</title>
+<meta name="description" content="A demo microsite showing a voice agent that answers billing questions by drawing components onto the customer’s bills screen. Illustrative data only.">
+<style>
+/* ============================================================================
+   Design tokens. Every colour and radius in the page comes from here.
+   ========================================================================= */
+:root{
+  --navy-900:#001057;   /* header gradient start */
+  --blue-600:#0050FF;   /* primary, header gradient end, AI bar start */
+  --blue-400:#5B8DFF;   /* AI bar gradient end */
+  --blue-050:#EDF2FF;   /* light inset strips */
+  --ink-900:#0B1A2B;    /* primary text */
+  --ink-600:#5A6472;    /* secondary text */
+  --ink-400:#8A93A0;    /* tertiary / captions — see note below */
+  --line:#EAEAEA;
+  --surface:#FFFFFF;
+  --page:#F5F6F8;
+  --amber:#F5A623;      /* Pending badge */
+  --green:#008A3E;      /* credits, within-allowance */
+  --red:#C81E1E;        /* over-allowance emphasis */
+  --violet:#6B5CE7;     /* phase 2 markers */
+
+  /* Accessibility-derived companions to the tokens above. --ink-400 (3.1:1 on
+     white) and --green (4.46:1 on white) sit just under WCAG AA for normal
+     text, so they are used for icon strokes, rules and fills only. Text uses
+     these instead, which are visually equivalent and pass AA. */
+  --green-ink:#00863C;  /* 4.7:1 on white — green text and amounts */
+  --green-chip:#00682D; /* 6.0:1 on the green chip tint, which --green-ink misses */
+  --violet-ink:#4F3FC4; /* 6.3:1 on the violet pill tint */
+  --violet-tint:#EEEBFC;
+
+  --focus:#0050FF;
+  --shadow-card:0 1px 0 rgba(255,255,255,.04) inset;
+
+  /* --- Site shell -----------------------------------------------------------
+     The page around the phone is dark, drawn from the same navy and blue as
+     the app. Everything above stays the app palette: the phone is a mock of a
+     light product and must keep reading as one, so nothing inside .phone uses
+     the tokens below. */
+  --site-bg:#05091A;             /* page */
+  --site-bg-alt:#0A1126;         /* the demo band, lifted off the page */
+  --site-surface:#0E1530;        /* cards */
+  --site-surface-2:#141C3B;      /* table head, panel chrome */
+  --site-line:rgba(255,255,255,.10);
+  --site-ink:#EDF1FA;            /* primary text   — 17.5:1 on --site-bg */
+  --site-ink-2:#AEB9D0;          /* secondary text — 10.0:1 */
+  --site-ink-3:#8792AC;          /* captions       —  6.4:1 */
+  --site-accent:#7EA4FF;         /* blue that survives a dark background */
+  --site-accent-soft:rgba(91,141,255,.14);
+  --site-violet:#A99BFF;
+  --site-violet-soft:rgba(169,155,255,.14);
+  --site-red:#FF6B6B;
+  --site-focus:#7EA4FF;
+
+  /* Phone geometry */
+  --phone-w:390px;
+  --phone-h:844px;
+  --dock-h:120px;       /* tab bar + AI prompt bar */
+  --statusbar-h:44px;
+
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+
+/* ============================================================================
+   Reset and base
+   ========================================================================= */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;color-scheme:dark}
+body{
+  margin:0;
+  font-family:var(--font);
+  font-size:17px;
+  line-height:1.55;
+  color:var(--site-ink);
+  background:var(--site-bg);
+  -webkit-font-smoothing:antialiased;
+  --focus:var(--site-focus);
+}
+/* The phone is a light surface. It re-anchors the inherited text colour to the
+   app's ink so nothing inside it picks up the dark shell's light text, and
+   keeps the app's focus blue and its own colour scheme. */
+.phone{--focus:#0050FF;color:var(--ink-900)}
+.phone-viewport{color-scheme:light}
+h1,h2,h3,h4,p,ul,ol,figure,dl,dd{margin:0}
+ul{padding:0;list-style:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+table{border-collapse:collapse;width:100%}
+svg{display:block}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:4px}
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+}
+
+.wrap{max-width:1120px;margin:0 auto;padding:0 40px}
+.eyebrow{
+  font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--site-accent);margin-bottom:20px;
+}
+.section{padding:88px 0;border-top:1px solid var(--site-line)}
+.section-title{
+  font-size:28px;line-height:1.25;font-weight:650;letter-spacing:-.015em;
+  max-width:34ch;text-wrap:balance;
+}
+.section-lede{font-size:17px;color:var(--site-ink-2);max-width:64ch;margin-top:16px}
+
+/* ============================================================================
+   2.1 Hero
+   ========================================================================= */
+/* A wash of the app's header gradient behind the opening screenful. */
+.hero{
+  position:relative;padding:96px 0 80px;
+  background:
+    radial-gradient(1100px 560px at 10% -20%, rgba(0,80,255,.30), transparent 60%),
+    radial-gradient(760px 420px at 88% -10%, rgba(91,141,255,.14), transparent 62%);
+}
+.hero h1{
+  font-size:44px;line-height:1.1;font-weight:680;letter-spacing:-.025em;
+  max-width:22ch;text-wrap:balance;
+}
+.hero-sub{font-size:17px;color:var(--site-ink-2);max-width:62ch;margin-top:24px}
+.stats{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;
+  margin-top:56px;padding-top:40px;border-top:1px solid var(--site-line);
+}
+.stat-value{font-size:56px;line-height:1;font-weight:650;letter-spacing:-.03em;color:var(--site-ink)}
+.stat-label{font-size:15px;color:var(--site-ink-2);margin-top:12px;max-width:32ch}
+.footnote{font-size:13px;color:var(--site-ink-3);margin-top:28px}
+
+/* ============================================================================
+   2.2 Why voice plus generative UI
+   ========================================================================= */
+.cards-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin-top:44px}
+.card{
+  background:var(--site-surface);border:1px solid var(--site-line);border-radius:12px;
+  padding:28px;box-shadow:var(--shadow-card);
+}
+.card h3{font-size:17px;font-weight:650;letter-spacing:-.01em}
+.card p{font-size:15px;color:var(--site-ink-2);margin-top:12px}
+
+/* ============================================================================
+   2.3 How the customer gets here
+   ========================================================================= */
+.entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:44px}
+.entry{
+  border:1px solid var(--site-line);border-radius:12px;padding:28px;background:var(--site-surface);
+  box-shadow:var(--shadow-card);
+}
+.entry-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:50%;background:var(--blue-600);color:#fff;
+  font-size:13px;font-weight:650;
+}
+.entry h3{font-size:17px;font-weight:650;margin-top:16px}
+.entry .status-note{font-size:13px;font-weight:600;color:var(--site-accent);margin-top:6px}
+.entry .status-note.later{color:var(--site-violet)}
+.entry p{font-size:15px;color:var(--site-ink-2);margin-top:12px}
+.entry strong{color:var(--site-ink);font-weight:600}
+
+/* ============================================================================
+   2.4 Component catalogue table
+   ========================================================================= */
+.mechanism{font-size:15px;color:var(--site-ink-2);max-width:74ch;margin-top:20px}
+.table-scroll{
+  overflow-x:auto;margin-top:36px;border:1px solid var(--site-line);border-radius:12px;
+  background:var(--site-surface);
+}
+table.catalogue{font-size:15px;min-width:660px}
+table.catalogue th,table.catalogue td{
+  text-align:left;padding:16px 20px;border-bottom:1px solid var(--site-line);vertical-align:top;
+  color:var(--site-ink-2);
+}
+table.catalogue tr:last-child td{border-bottom:0}
+table.catalogue th{font-size:13px;font-weight:650;color:var(--site-ink-3);background:var(--site-surface-2)}
+table.catalogue td:first-child{white-space:nowrap;font-weight:600;color:var(--site-ink)}
+table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+.badge-priority{
+  display:inline-block;margin-left:8px;font-size:11px;font-weight:650;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--site-accent);background:var(--site-accent-soft);
+  border-radius:999px;padding:2px 8px;vertical-align:1px;
+}
+
+/* ============================================================================
+   2.5 The demo section
+   ========================================================================= */
+.demo-section{
+  background:var(--site-bg-alt);
+  border-top:1px solid var(--site-line);border-bottom:1px solid var(--site-line);
+  padding:88px 0 96px;
+}
+.demo-instruction{font-size:15px;color:var(--site-ink-2);max-width:70ch;margin-top:16px}
+.demo-instruction strong{color:var(--site-ink);font-weight:600}
+/* A pool of light under the phone so a dark bezel does not sink into a dark
+   page. */
+.demo-stage{position:relative;display:flex;justify-content:center;margin-top:48px}
+.demo-stage::before{
+  content:"";position:absolute;left:50%;top:8%;translate:-50% 0;
+  width:min(760px,92%);height:84%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side, rgba(0,80,255,.26), transparent 74%);
+  filter:blur(18px);
+}
+.demo-stage>*{position:relative}
+
+/* ============================================================================
+   2.6 Notes and limitations
+   ========================================================================= */
+.notes{margin-top:32px;max-width:76ch}
+.notes li{
+  position:relative;padding-left:26px;font-size:15px;color:var(--site-ink-2);margin-bottom:14px;
+}
+.notes li::before{
+  content:"";position:absolute;left:4px;top:9px;width:6px;height:6px;border-radius:50%;
+  background:var(--site-accent);
+}
+.notes strong{color:var(--site-ink);font-weight:600}
+
+/* ============================================================================
+   3. Phone frame
+   ========================================================================= */
+.phone{
+  position:relative;flex:0 0 auto;
+  width:calc(var(--phone-w) + 24px);
+  height:calc(var(--phone-h) + 24px);
+  padding:12px;border-radius:56px;background:#12161C;
+  /* A light rim rather than a soft shadow: on a dark page a dark shadow does
+     nothing, and the bezel needs an edge to sit against. */
+  box-shadow:0 40px 90px rgba(0,0,0,.65),
+             0 0 0 1px rgba(255,255,255,.14),
+             inset 0 0 0 2px #2A3038;
+}
+.phone-viewport{
+  position:relative;width:var(--phone-w);height:var(--phone-h);
+  border-radius:44px;overflow:hidden;background:var(--page);
+  isolation:isolate;
+}
+.notch{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  width:118px;height:30px;border-radius:16px;background:#12161C;z-index:60;
+}
+/* Status bar is phone chrome: one element, recoloured for the screen beneath it. */
+.statusbar{
+  position:absolute;top:0;left:0;right:0;height:var(--statusbar-h);z-index:55;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 26px 0;pointer-events:none;color:var(--ink-900);
+  transition:color 300ms ease;
+}
+.statusbar.on-dark{color:#fff}
+.statusbar-time{font-size:13px;font-weight:650;letter-spacing:.01em}
+.statusbar-glyphs{display:flex;align-items:center;gap:6px}
+.statusbar svg{fill:currentColor}
+
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+
+/* ---- 3.1 Screen A — messaging conversation --------------------------------- */
+.screen-a{
+  z-index:10;background:#F2F3F5;
+  transition:opacity 300ms ease,transform 300ms ease,visibility 0s linear 0s;
+}
+/* visibility follows the fade so the messaging screen leaves the tab order
+   once it is off. */
+.screen-a.is-gone{
+  opacity:0;transform:translateY(-28px);pointer-events:none;visibility:hidden;
+  transition:opacity 300ms ease,transform 300ms ease,visibility 0s linear 300ms;
+}
+.chat-header{
+  flex:0 0 auto;padding:calc(var(--statusbar-h) + 6px) 16px 12px;
+  background:#FFF;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:10px;
+}
+.chat-back{
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  border-radius:8px;color:var(--ink-600);
+}
+.chat-title{font-size:15px;font-weight:650}
+.chat-body{
+  flex:1 1 auto;overflow-y:auto;padding:18px 16px 24px;
+  display:flex;flex-direction:column;gap:10px;scrollbar-width:none;
+}
+.chat-body::-webkit-scrollbar{display:none}
+.msg{max-width:78%;display:flex;flex-direction:column;gap:4px;animation:msg-in 260ms ease both}
+@keyframes msg-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.msg.from-bot{align-self:flex-start;align-items:flex-start}
+.msg.from-customer{align-self:flex-end;align-items:flex-end}
+.msg-bubble{padding:10px 14px;border-radius:16px;font-size:15px;line-height:1.4}
+.from-bot .msg-bubble{background:#FFF;border:1px solid var(--line);border-bottom-left-radius:6px}
+.from-customer .msg-bubble{background:#D9DDE3;border-bottom-right-radius:6px}
+.msg-time{font-size:11px;color:var(--ink-600)}
+.typing{
+  align-self:flex-start;display:flex;gap:4px;padding:12px 14px;background:#FFF;
+  border:1px solid var(--line);border-radius:16px;border-bottom-left-radius:6px;
+  animation:msg-in 200ms ease both;
+}
+.typing span{
+  width:7px;height:7px;border-radius:50%;background:var(--ink-400);
+  animation:typing-bounce 1.1s infinite ease-in-out;
+}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+@keyframes typing-bounce{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+.deeplink-card{
+  align-self:flex-start;max-width:86%;background:#FFF;border:1px solid var(--line);
+  border-radius:16px;border-bottom-left-radius:6px;padding:16px;
+  animation:msg-in 260ms ease both;
+}
+.deeplink-card h4{font-size:15px;font-weight:650}
+.deeplink-card p{font-size:13px;color:var(--ink-600);margin-top:4px}
+.btn-primary{
+  display:block;width:100%;margin-top:14px;padding:12px 16px;border-radius:10px;
+  background:var(--blue-600);color:#fff;font-size:15px;font-weight:650;text-align:center;
+  transition:background 140ms ease;
+}
+.btn-primary:hover{background:#0043D6}
+
+/* ---- 3.2 Screen B — bills screen ------------------------------------------ */
+.screen-b{z-index:5;background:var(--page)}
+.bills-scroll{
+  flex:1 1 auto;overflow-y:auto;scrollbar-width:none;
+  padding-bottom:calc(var(--dock-h) + 24px);
+}
+.bills-scroll::-webkit-scrollbar{display:none}
+
+.bills-header{
+  background:linear-gradient(160deg,var(--navy-900) 0%,var(--blue-600) 100%);
+  padding:calc(var(--statusbar-h) + 8px) 0 0;min-height:190px;color:#fff;
+}
+.bills-header-inner{padding:0 20px}
+.bills-title-row{display:flex;align-items:center;justify-content:space-between}
+.bills-title{font-size:22px;font-weight:650;letter-spacing:-.01em}
+.bills-doc-icon{color:#fff;opacity:.92}
+.month-pills{display:flex;gap:8px;margin-top:14px;overflow-x:auto;scrollbar-width:none}
+.month-pills::-webkit-scrollbar{display:none}
+.month-pill{
+  flex:0 0 auto;padding:5px 13px;border-radius:999px;font-size:13px;font-weight:600;
+  background:rgba(255,255,255,.16);color:rgba(255,255,255,.94);
+  border:1px solid rgba(255,255,255,.22);transition:background 140ms ease;
+}
+.month-pill[aria-pressed="true"]{background:#fff;color:var(--navy-900);border-color:#fff}
+.bills-amount-row{display:flex;align-items:flex-start;justify-content:space-between;margin-top:14px;gap:12px}
+.bills-amount{font-size:34px;line-height:1.1;font-weight:650;letter-spacing:-.02em}
+.bills-due{font-size:13px;color:rgba(255,255,255,.92);margin-top:2px}
+.bills-chips{display:flex;gap:6px;padding-top:8px}
+.chip-sm{padding:4px 11px;border-radius:999px;font-size:11px;font-weight:650;letter-spacing:.01em}
+/* Kept at 16% so white label text clears 4.5:1 against the lightest part of
+   the header gradient, not just the part it happens to sit on. */
+.chip-bill{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.55)}
+.chip-pending{background:var(--amber);color:#3A2600}
+.bills-delta{font-size:13px;color:rgba(255,255,255,.92);margin-top:8px}
+.bills-account{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-top:10px;padding:9px 0;font-size:13px;color:rgba(255,255,255,.94);
+  border-top:1px solid rgba(255,255,255,.16);width:100%;text-align:left;
+}
+/* "The curve": page-coloured block with a large top radius, closing the header. */
+.curve{background:var(--page);border-radius:22px 22px 0 0;margin-top:10px;padding:12px 16px 2px}
+.dd-strip{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--blue-050);border-radius:10px;padding:11px 13px;
+  font-size:13px;color:var(--navy-900);font-weight:550;
+}
+.dd-strip svg{color:var(--blue-600);flex:0 0 auto}
+
+.filter-row{
+  display:flex;align-items:center;gap:10px;background:var(--surface);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:10px 16px;margin-top:12px;
+}
+.filter-icon-btn{
+  width:34px;height:34px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line);border-radius:9px;color:var(--ink-600);
+}
+.filter-select{
+  flex:1 1 auto;display:flex;align-items:center;gap:8px;
+  border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600;
+}
+.dot-green{width:8px;height:8px;border-radius:50%;background:var(--green);flex:0 0 auto}
+.filter-select .chev{margin-left:auto;color:var(--ink-600)}
+
+.charge-list{padding:16px;display:flex;flex-direction:column;gap:14px}
+.charge-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.charge-row{display:flex;align-items:center;gap:12px;width:100%;padding:14px;text-align:left}
+.charge-text{flex:1 1 auto;min-width:0}
+.charge-title{display:block;font-size:15px;font-weight:650;letter-spacing:-.005em}
+.charge-sub{display:block;font-size:12px;color:var(--ink-600);margin-top:2px}
+.help-tile-title,.help-tile-sub{display:block}
+.charge-amount{font-size:15px;font-weight:650;flex:0 0 auto}
+.charge-amount.credit{color:var(--green-ink)}
+.charge-row .chev{color:var(--ink-600);flex:0 0 auto;transition:transform 220ms ease}
+.charge-row[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.charge-detail{display:none;padding:0 14px 14px;border-top:1px solid var(--line)}
+.charge-detail.is-open{display:block;animation:msg-in 200ms ease both}
+.charge-detail p{font-size:13px;color:var(--ink-600);padding-top:12px}
+
+.help-block{margin:2px 16px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.help-block h4{font-size:15px;font-weight:650}
+.help-tiles{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.help-tile{
+  display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:10px;
+  padding:12px;text-align:left;width:100%;
+}
+.help-tile-title{font-size:13px;font-weight:650}
+.help-tile-sub{font-size:12px;color:var(--ink-600);margin-top:1px}
+.help-tile .chev{margin-left:auto;color:var(--ink-600)}
+
+/* Phase 2 markers */
+.pill-phase2{
+  display:inline-block;font-size:10px;line-height:1.5;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--violet-ink);background:var(--violet-tint);
+  border-radius:999px;padding:2px 7px;
+}
+.btn-secondary{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  padding:12px 16px;border:1px solid var(--blue-600);border-radius:10px;
+  color:var(--blue-600);font-size:15px;font-weight:650;background:var(--surface);
+}
+.link-query{
+  display:inline-flex;align-items:center;gap:8px;margin-top:12px;
+  font-size:13px;font-weight:650;color:var(--blue-600);text-decoration:underline;
+  text-underline-offset:3px;
+}
+.tooltip{
+  position:absolute;z-index:58;max-width:250px;padding:9px 12px;border-radius:9px;
+  background:var(--ink-900);color:#fff;font-size:12px;line-height:1.4;
+  box-shadow:0 8px 24px rgba(11,26,43,.3);opacity:0;transform:translateY(4px);
+  transition:opacity 160ms ease,transform 160ms ease;pointer-events:none;
+}
+.tooltip.is-visible{opacity:1;transform:none}
+
+/* ---- 3.3 AI bar and microphone -------------------------------------------- */
+/* The dock belongs to the app, not to the messaging surface, so it only
+   appears once Screen B is in front. */
+.ai-dock{
+  position:absolute;left:0;right:0;bottom:0;z-index:40;display:flex;flex-direction:column;
+  visibility:hidden;opacity:0;transform:translateY(100%);pointer-events:none;
+  transition:opacity 300ms ease,transform 300ms ease;
+}
+.ai-dock.is-shown{visibility:visible;opacity:1;transform:none;pointer-events:auto}
+.tab-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface);border-radius:22px 22px 0 0;padding:10px 22px 12px;
+  box-shadow:0 -2px 10px rgba(11,26,43,.06);
+}
+.tab-item{
+  width:40px;height:40px;display:flex;align-items:center;justify-content:center;
+  color:#6E6E6E;border-radius:10px;
+}
+.tab-item svg{stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.tab-item.is-active{color:var(--blue-600)}
+.tab-item.is-active svg{fill:currentColor;stroke:none}
+.tab-centre{
+  width:52px;height:52px;border-radius:50%;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(140deg,var(--blue-600),var(--blue-400));
+  color:#fff;box-shadow:0 4px 12px rgba(0,80,255,.32);
+  transition:box-shadow 220ms ease,transform 140ms ease;
+}
+.tab-centre svg{fill:#fff;stroke:none}
+.tab-centre:active{transform:scale(.96)}
+
+/* The AI prompt bar. The gradient runs #0050FF -> #5B8DFF but holds the darker
+   end under the text run, so white text keeps a 4.9:1 contrast ratio. */
+.ai-bar{
+  position:relative;overflow:hidden;
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:15px 16px;border-radius:20px 20px 0 0;
+  background:linear-gradient(90deg,var(--blue-600) 0%,#1B62FF 78%,var(--blue-400) 100%);
+  color:#fff;text-align:left;
+}
+.ai-bar-sparkle{flex:0 0 auto;fill:#fff}
+.ai-bar-text{
+  flex:1 1 auto;font-size:15px;font-weight:550;color:#fff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.ai-bar-right{flex:0 0 auto;display:flex;align-items:center;gap:10px}
+.ai-bar-mic{
+  width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  transition:background 200ms ease,opacity 200ms ease;
+}
+.ai-bar-mic svg{stroke:#fff;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ai-levels{display:none;align-items:flex-end;gap:3px;height:18px}
+.ai-levels i{display:block;width:3px;border-radius:2px;background:#fff;height:6px}
+.ai-bar[data-state="listening"] .ai-levels{display:flex}
+.ai-bar[data-state="listening"] .ai-levels i{animation:level 900ms infinite ease-in-out}
+.ai-levels i:nth-child(2){animation-delay:.15s}
+.ai-levels i:nth-child(3){animation-delay:.3s}
+@keyframes level{0%,100%{height:5px}50%{height:17px}}
+
+.ai-bar[data-state="connecting"]::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.28) 50%,transparent 80%);
+  background-size:220% 100%;animation:shimmer 1.5s infinite linear;
+}
+@keyframes shimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+.ai-bar[data-state="connecting"] .ai-bar-mic{opacity:.6}
+.ai-bar[data-state="listening"] .ai-bar-mic{background:#fff}
+.ai-bar[data-state="listening"] .ai-bar-mic svg{stroke:var(--blue-600);fill:var(--blue-600)}
+.ai-bar[data-state="speaking"] .ai-bar-sparkle{animation:sparkle-pulse 1.8s infinite ease-in-out}
+@keyframes sparkle-pulse{0%,100%{opacity:.55;transform:scale(.9)}50%{opacity:1;transform:scale(1.08)}}
+.ai-dock[data-state="listening"] .tab-centre{box-shadow:0 0 0 6px rgba(0,80,255,.18),0 4px 12px rgba(0,80,255,.32)}
+
+/* Caption strip — a live caption above the AI bar, not a chat transcript. */
+.caption-strip{
+  position:absolute;left:12px;right:12px;bottom:calc(var(--dock-h) + 10px);z-index:45;
+  display:none;flex-direction:column;gap:8px;
+  padding:12px 14px;border-radius:14px;background:rgba(11,26,43,.97);color:#fff;
+  box-shadow:0 10px 30px rgba(11,26,43,.3);
+  animation:msg-in 220ms ease both;
+}
+.caption-strip.is-visible{display:flex}
+.caption-who{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#B9C6DA}
+.caption-strip[data-who="customer"] .caption-who{color:#FFD79A}
+.caption-text{font-size:13px;line-height:1.45}
+.caption-next{
+  align-self:flex-start;display:inline-flex;align-items:center;gap:7px;
+  padding:7px 13px;border-radius:999px;background:#fff;color:var(--ink-900);
+  font-size:12px;font-weight:700;
+}
+.caption-next svg{fill:currentColor}
+
+/* ---- 3.4 Slide-out sheet --------------------------------------------------- */
+.scrim{
+  position:absolute;inset:0;z-index:20;background:rgba(11,26,43,.28);
+  opacity:0;pointer-events:none;transition:opacity 320ms ease;
+}
+.scrim.is-visible{opacity:1;pointer-events:auto}
+.sheet{
+  position:absolute;left:0;right:0;bottom:var(--dock-h);z-index:30;
+  max-height:62%;                    /* never covers more than 62% of the viewport */
+  display:flex;flex-direction:column;
+  background:var(--surface);border-radius:20px 20px 0 0;
+  box-shadow:0 -8px 30px rgba(11,26,43,.18);
+  transform:translateY(100%);
+  /* Hidden outright once the exit animation has run, so its chrome never
+     peeks above the dock and its close button is never keyboard-reachable. */
+  visibility:hidden;
+  transition:transform 240ms cubic-bezier(.22,1,.36,1),height 180ms ease,
+             visibility 0s linear 240ms;
+  will-change:transform;
+}
+.sheet.is-open{
+  transform:translateY(0);visibility:visible;
+  transition:transform 320ms cubic-bezier(.22,1,.36,1),height 180ms ease,
+             visibility 0s linear 0s;
+}
+.sheet.is-dragging{transition:none}
+.sheet-grab{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  padding:10px 0 6px;cursor:grab;touch-action:none;
+}
+.sheet-grab::after{content:"";width:36px;height:4px;border-radius:2px;background:#D3D7DE}
+.sheet-close{
+  position:absolute;top:12px;right:12px;z-index:2;
+  width:28px;height:28px;border-radius:50%;background:var(--page);
+  display:flex;align-items:center;justify-content:center;color:var(--ink-600);
+}
+.sheet-body{
+  flex:1 1 auto;overflow-y:auto;scrollbar-width:none;
+  padding:2px 16px 16px;transition:opacity 90ms ease;   /* two halves of a 180ms cross-fade */
+}
+.sheet-body::-webkit-scrollbar{display:none}
+.sheet-body.is-fading{opacity:0}
+/* Reserve exactly the caption's own height so the live caption never hides
+   the foot of a component. Set from JS when the caption changes. */
+.sheet.has-caption .sheet-body{padding-bottom:var(--caption-clear,64px)}
+
+/* ============================================================================
+   4.3 Generative UI components — the app’s visual language, not chat bubbles.
+   ========================================================================= */
+.genui{display:block}
+.genui>*:first-child{padding-right:36px}   /* clear the sheet close button */
+.gc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.gc-period{font-size:13px;font-weight:650;color:var(--ink-600)}
+.gc-status{padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;flex:0 0 auto}
+.gc-status.unpaid{background:var(--amber);color:#3A2600}
+.gc-status.paid{background:#DCF3E5;color:var(--green-chip)}
+.gc-status.pending{background:var(--blue-050);color:var(--navy-900)}
+.gc-total{font-size:28px;font-weight:650;letter-spacing:-.02em;line-height:1.15;margin-top:6px}
+.gc-due{font-size:13px;color:var(--ink-600);margin-top:2px}
+.gc-compare{
+  display:inline-flex;align-items:center;gap:6px;margin-top:12px;
+  padding:5px 11px;border-radius:999px;font-size:13px;font-weight:650;
+}
+.gc-compare.up{background:#FCE9E9;color:var(--red)}
+.gc-compare.down{background:#DCF3E5;color:var(--green-ink)}
+.gc-headline{font-size:15px;margin-top:12px;line-height:1.45}
+.gc-lines{border-top:1px solid var(--line);margin-top:14px}
+.gc-line{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.gc-line.attention{border-left:3px solid var(--red);padding-left:11px}
+.gc-line-text{flex:1 1 auto;min-width:0}
+.gc-line-label{font-size:15px;font-weight:600}
+.gc-line-sub{font-size:12px;color:var(--ink-600);margin-top:2px}
+.gc-line-amount{font-size:15px;font-weight:650;flex:0 0 auto}
+.gc-line-amount.credit{color:var(--green-ink)}
+.gc-line-amount.attention{color:var(--red)}
+.gc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.gc-action{
+  padding:9px 14px;border-radius:999px;border:1px solid var(--line);
+  background:var(--page);font-size:13px;font-weight:650;color:var(--ink-900);
+  transition:background 140ms ease,border-color 140ms ease;
+}
+.gc-action:hover{background:var(--blue-050);border-color:var(--blue-400)}
+
+/* usage_allowance_card */
+.gu-title{font-size:17px;font-weight:650}
+/* The "included" label sits directly above the allowance marker, so it is
+   positioned from the same percentage the marker uses. */
+.gu-barlabels{position:relative;height:16px;font-size:11px;color:var(--ink-600);margin-top:18px}
+.gu-lab-included{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;font-weight:650;color:var(--ink-900)}
+.gu-lab-used{font-size:11px;color:var(--ink-600);text-align:right;margin-top:6px}
+.gu-bar{
+  position:relative;height:18px;border-radius:9px;background:var(--line);
+  overflow:hidden;margin-top:6px;display:flex;
+}
+.gu-seg{height:100%;transform:scaleX(0);transform-origin:left center}
+.gu-seg.within{background:var(--blue-600);transition:transform 450ms cubic-bezier(.22,1,.36,1)}
+.gu-seg.over{background:var(--red);transition:transform 250ms cubic-bezier(.22,1,.36,1) 450ms}
+.gu-bar.is-filled .gu-seg{transform:scaleX(1)}
+.gu-marker{position:absolute;top:0;bottom:0;width:2px;background:#fff;z-index:2}
+.gu-table{margin-top:16px;border-top:1px solid var(--line)}
+.gu-tr{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.gu-tr dt{color:var(--ink-600)}
+.gu-tr dd{font-weight:600}
+.gu-tr.total dt,.gu-tr.total dd{font-weight:700;font-size:15px;color:var(--ink-900)}
+.gu-when{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;color:var(--ink-900)}
+.gu-when svg{color:var(--blue-600);flex:0 0 auto}
+.gu-note{font-size:13px;color:var(--ink-600);margin-top:10px}
+
+/* bill_period_selector + charge_detail_card */
+.gp-prompt{font-size:15px;font-weight:600}
+.gp-list{margin-top:12px;border-top:1px solid var(--line)}
+.gp-row{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  padding:12px 0;border-bottom:1px solid var(--line);
+}
+.gp-label{flex:1 1 auto;font-size:15px;font-weight:600}
+.gp-row .gc-status{text-transform:capitalize}
+.gp-amount{font-size:15px;font-weight:650}
+.gd-chip{
+  display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;
+  background:var(--blue-050);color:var(--navy-900);
+}
+.gd-amount{font-size:22px;font-weight:650;margin-top:10px}
+.gd-when{font-size:13px;color:var(--ink-600);margin-top:2px}
+.gd-explain{font-size:15px;margin-top:12px;line-height:1.45}
+
+/* Toast inside the phone */
+.toast{
+  position:absolute;left:16px;right:16px;bottom:calc(var(--dock-h) + 78px);z-index:57;
+  padding:12px 14px;border-radius:12px;background:var(--ink-900);color:#fff;
+  font-size:13px;line-height:1.4;box-shadow:0 10px 30px rgba(11,26,43,.35);
+  display:none;
+}
+.toast.is-visible{display:block;animation:msg-in 220ms ease both}
+.toast button{
+  margin-top:8px;font-size:13px;font-weight:700;color:#9EC0FF;text-decoration:underline;
+  text-underline-offset:3px;
+}
+
+/* ============================================================================
+   7. Demo controls and debug panel
+   ========================================================================= */
+.controls{max-width:760px;margin:28px auto 0;display:flex;flex-direction:column;gap:14px}
+.controls-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+.mode-indicator{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+  background:var(--site-surface);border:1px solid var(--site-line);font-size:13px;font-weight:600;
+}
+.mode-dot{width:8px;height:8px;border-radius:50%;background:var(--site-ink-3)}
+.mode-indicator[data-live="true"] .mode-dot{background:#31D07A}
+.ctl-btn{
+  padding:7px 14px;border-radius:999px;border:1px solid var(--site-line);
+  background:var(--site-surface);color:var(--site-ink);
+  font-size:13px;font-weight:650;transition:border-color 140ms ease,background 140ms ease;
+}
+.ctl-btn:hover{border-color:var(--site-accent);background:var(--site-surface-2)}
+.ctl-btn.is-emphasised{background:var(--blue-600);border-color:var(--blue-600);color:#fff}
+.ctl-btn.is-emphasised:hover{background:#2E6BFF}
+.end-marker{
+  display:none;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+  background:var(--site-violet-soft);color:var(--site-violet);font-size:13px;font-weight:650;
+}
+.end-marker.is-visible{display:inline-flex}
+.small-print{font-size:11px;color:var(--site-ink-3);text-align:center}
+.debug{
+  display:none;border:1px solid var(--site-line);border-radius:12px;
+  background:var(--site-surface);overflow:hidden;
+}
+.debug.is-open{display:block}
+.debug-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 12px;border-bottom:1px solid var(--site-line);background:var(--site-surface-2);
+}
+.debug-head h3{font-size:13px;font-weight:700;color:var(--site-ink)}
+.debug-log{
+  max-height:300px;overflow:auto;margin:0;padding:10px 12px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;
+  color:var(--site-ink-2);
+}
+.debug-entry{padding:4px 0;border-bottom:1px solid var(--site-line);white-space:pre-wrap;word-break:break-word}
+.debug-entry:last-child{border-bottom:0}
+.debug-t{color:var(--site-ink-3)}
+.debug-k{font-weight:700}
+.debug-entry[data-kind="error"] .debug-k{color:var(--site-red)}
+.debug-entry[data-kind="tool"] .debug-k{color:var(--site-accent)}
+.debug-entry[data-kind="state"] .debug-k{color:var(--site-violet)}
+
+/* The live widget is mounted but visually suppressed — never display:none,
+   which can stop it initialising. */
+.cesm-host{
+  position:absolute;left:-10000px;top:0;width:390px;height:600px;
+  opacity:0;pointer-events:none;overflow:hidden;
+}
+
+/* ============================================================================
+   Responsive. Desktop-first; must not break below 900px.
+   ========================================================================= */
+@media (max-width:1000px){
+  .wrap{padding:0 24px}
+  .hero h1{font-size:36px}
+  .stats{gap:24px}
+  .stat-value{font-size:44px}
+  .cards-3,.entries{grid-template-columns:1fr}
+  .section{padding:64px 0}
+  .hero{padding:64px 0 56px}
+}
+@media (max-width:520px){
+  :root{--phone-w:340px;--phone-h:720px}
+  .hero h1{font-size:30px}
+  .stats{grid-template-columns:1fr}
+  .phone{border-radius:44px}
+  .phone-viewport{border-radius:34px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ==========================================================================
+     Icon sprite. All icons are author-written static markup referenced with
+     <use>. Nothing here is ever built from agent-supplied strings.
+     ======================================================================= -->
+<svg class="sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18"/><circle cx="9.8" cy="12" r="1.2"/><path d="M8 17.2l2.6-2.6 1.7 1.7 1.8-1.8 2 2.7"/></g></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.6" y="5" width="16.8" height="15" rx="2.6"/><path d="M3.6 10h16.8M8 3.2v3.6M16 3.2v3.6"/></g></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6.5h16M7 12h10M10 17.5h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 4.5l6.5 8.5H14v7h-4v-7H5.5L12 4.5Z" fill="currentColor"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 19.5L5.5 11H10V4h4v7h4.5L12 19.5Z" fill="currentColor"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.2l12 7.8-12 7.8V4.2Z" fill="currentColor"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.6 4.6L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <!-- Tab bar and AI bar glyphs carry no presentation attributes so their fill
+       and stroke can be driven from CSS state classes. -->
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.4 12 4l8 6.4V19a1.5 1.5 0 0 1-1.5 1.5H15V15H9v5.5H5.5A1.5 1.5 0 0 1 4 19v-8.6Z"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.4V12l3.2 2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.4"/><path d="M15.8 15.8 20.4 20.4"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-6 5V5.5Z"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 2.5c1 5 3.5 7.5 8.5 8.5-5 1-7.5 3.5-8.5 8.5-1-5-3.5-7.5-8.5-8.5 5-1 7.5-3.5 8.5-8.5Z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 3.2a2.9 2.9 0 0 1 2.9 2.9v5.6a2.9 2.9 0 0 1-5.8 0V6.1A2.9 2.9 0 0 1 12 3.2Z"/><path d="M5.6 11.2a6.4 6.4 0 0 0 12.8 0"/><path d="M12 17.6v3.2"/></symbol>
+  <!-- Status bar glyphs -->
+  <symbol id="i-signal" viewBox="0 0 17 12"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.7" y="5.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="3.4" width="3" height="8.6" rx="1"/><rect x="14" y="1" width="3" height="11" rx="1"/></g></symbol>
+  <symbol id="i-wifi" viewBox="0 0 16 12"><g fill="currentColor"><path d="M8 11.1 5.5 8.3a3.8 3.8 0 0 1 5 0L8 11.1Z"/><path d="M11.7 7 10.4 5.7a3.6 3.6 0 0 0-4.8 0L4.3 7 3 5.6a5.5 5.5 0 0 1 10 0L11.7 7Z"/><path d="M14.7 3.7A9.9 9.9 0 0 0 1.3 3.7L0 2.3a11.8 11.8 0 0 1 16 0L14.7 3.7Z"/></g></symbol>
+  <symbol id="i-battery" viewBox="0 0 27 12"><rect x="0.6" y="1" width="21.8" height="10" rx="3.2" fill="none" stroke="currentColor" stroke-opacity=".45"/><rect x="2.6" y="3" width="15.6" height="6" rx="1.8" fill="currentColor"/><path d="M24.4 4.3c1.4.5 1.4 2.9 0 3.4V4.3Z" fill="currentColor" fill-opacity=".45"/></symbol>
+</defs></svg>
+
+<!-- ==========================================================================
+     2.1 Hero
+     ======================================================================= -->
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Billing · Digital channel</p>
+    <h1>The biggest reason customers message us is a number they don’t understand.</h1>
+    <p class="hero-sub">Billing is the largest contact driver in messaging, and almost all of it is comprehension: what a charge is, why the bill moved, what happens next. Very little of it needs an agent to change anything — it needs the number explained.</p>
+
+    <ul class="stats">
+      <li>
+        <p class="stat-value">63k</p>
+        <p class="stat-label">customers a month arrive in messaging with a billing intent</p>
+      </li>
+      <li>
+        <p class="stat-value">13%</p>
+        <p class="stat-label">are contained today without reaching a human</p>
+      </li>
+      <li>
+        <p class="stat-value">87%</p>
+        <p class="stat-label">go on to a human agent</p>
+      </li>
+    </ul>
+    <p class="footnote">Containment = the conversation resolved in messaging without handing to a human agent.</p>
+  </div>
+</header>
+
+<!-- ==========================================================================
+     2.2 Why voice plus generative UI
+     ======================================================================= -->
+<section class="section" aria-labelledby="why-h">
+  <div class="wrap">
+    <h2 class="section-title" id="why-h">Why voice plus generative UI</h2>
+    <div class="cards-3">
+      <article class="card">
+        <h3>Voice is fast, but a bill is a table.</h3>
+        <p>Reading a nine-line breakdown aloud is worse than saying nothing. The agent talks; the screen carries the detail.</p>
+      </article>
+      <article class="card">
+        <h3>The customer is already in the app.</h3>
+        <p>The bill they are asking about is on the device in their hand. The agent works on top of it, not in a separate window.</p>
+      </article>
+      <article class="card">
+        <h3>Comprehension is the whole job.</h3>
+        <p>Show the number, show what moved, show the evidence. Most billing contacts end there.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================================================
+     2.3 How the customer gets here
+     ======================================================================= -->
+<section class="section" aria-labelledby="entry-h">
+  <div class="wrap">
+    <h2 class="section-title" id="entry-h">How the customer gets here</h2>
+    <p class="section-lede">Two entry points, sequenced. The first proves the mechanism against traffic we already have. The second only earns its place once containment is real.</p>
+    <div class="entries">
+      <article class="entry">
+        <p class="entry-num">1</p>
+        <h3>Entry point 1 — from messaging</h3>
+        <p class="status-note">Phase 1 · live in this demo</p>
+        <p>The customer is already messaging. The NLU classifies a billing intent. Rather than queue for a human, they are offered a deep link that opens the bills screen in the app and starts the voice agent, carrying what they already said so nothing is repeated.</p>
+      </article>
+      <article class="entry">
+        <p class="entry-num">2</p>
+        <h3>Entry point 2 — from the billing screens</h3>
+        <p class="status-note later">Phase 2 · after containment is proven</p>
+        <p>Tactical starts placed directly in the billing screens: an <strong>Explain my bill</strong> action at the foot of a bill, a <strong>Query this charge</strong> action on an individual line. Same agent, same components, no chat needed to get in. Marked on the demo screen but deliberately inert.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================================================
+     2.4 What the agent puts on screen
+     ======================================================================= -->
+<section class="section" aria-labelledby="cat-h">
+  <div class="wrap">
+    <h2 class="section-title" id="cat-h">What the agent puts on screen</h2>
+    <p class="mechanism">The agent does not generate interface code. It picks a component from a catalogue this page declares and supplies a JSON payload matching that component’s schema. The page renders it with components we own, styled to brand. Anything the agent sends that does not match a schema is rejected and the agent is told why — including the field, the reason, and the list of components it may actually use.</p>
+    <div class="table-scroll">
+      <table class="catalogue">
+        <caption class="sr-only">The four components the agent may reference, what each shows, and when it is used.</caption>
+        <thead>
+          <tr><th scope="col">Component</th><th scope="col">What it shows</th><th scope="col">When the agent uses it</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>bill_summary_card</code><span class="badge-priority">Scripted</span></td>
+            <td>The whole bill in one card: total, whether it has been taken, what moved since last month, and where the money went.</td>
+            <td>The first answer to any “what is my bill” or “why has it changed” question.</td>
+          </tr>
+          <tr>
+            <td><code>usage_allowance_card</code><span class="badge-priority">Scripted</span></td>
+            <td>An allowance against what was used, the date it was crossed, and how the extra was calculated.</td>
+            <td>When the customer queries an out-of-plan or over-allowance charge.</td>
+          </tr>
+          <tr>
+            <td><code>bill_period_selector</code></td>
+            <td>A short list of recent bills, each with its amount and status.</td>
+            <td>When it is not clear which bill the customer means.</td>
+          </tr>
+          <tr>
+            <td><code>charge_detail_card</code></td>
+            <td>One charge on its own: amount, when it applied, and whether it recurs.</td>
+            <td>When a single line needs explaining and the full bill would be noise.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================================================
+     2.5 The demo
+     ======================================================================= -->
+<section class="demo-section" aria-labelledby="demo-h">
+  <div class="wrap">
+    <h2 class="section-title" id="demo-h">The demo</h2>
+    <p class="demo-instruction">Start in the messaging conversation and tap <strong>Open my bills</strong>. The agent takes over from there. Customer turns wait for you — tap <strong>Next</strong> in the caption strip to advance.</p>
+
+    <div class="demo-stage">
+      <!-- ==================================================================
+           3. The phone frame. Chrome only — nothing in the demo depends on it.
+           =============================================================== -->
+      <div class="phone">
+        <div class="phone-viewport" id="phoneViewport">
+          <div class="notch" aria-hidden="true"></div>
+
+          <div class="statusbar" id="statusBar" aria-hidden="true">
+            <span class="statusbar-time">09:41</span>
+            <span class="statusbar-glyphs">
+              <svg width="17" height="12" viewBox="0 0 17 12"><use href="#i-signal"/></svg>
+              <svg width="16" height="12" viewBox="0 0 16 12"><use href="#i-wifi"/></svg>
+              <svg width="27" height="12" viewBox="0 0 27 12"><use href="#i-battery"/></svg>
+            </span>
+          </div>
+
+          <!-- ---- 3.2 Screen B — the bills screen. Always mounted underneath. -->
+          <div class="screen screen-b" id="screenB">
+            <div class="bills-scroll" id="billsScroll">
+              <div class="bills-header">
+                <div class="bills-header-inner">
+                  <div class="bills-title-row">
+                    <h2 class="bills-title">Bills</h2>
+                    <svg class="bills-doc-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-doc"/></svg>
+                  </div>
+
+                  <div class="month-pills" role="group" aria-label="Bill period">
+                    <button type="button" class="month-pill" aria-pressed="false">Older</button>
+                    <button type="button" class="month-pill" aria-pressed="false">Feb</button>
+                    <button type="button" class="month-pill" aria-pressed="false">Mar</button>
+                    <button type="button" class="month-pill" aria-pressed="false">Apr</button>
+                    <button type="button" class="month-pill" aria-pressed="false">May</button>
+                    <button type="button" class="month-pill" aria-pressed="true">Jun</button>
+                  </div>
+
+                  <div class="bills-amount-row">
+                    <div>
+                      <p class="bills-amount" id="billsAmount">£48.50</p>
+                      <p class="bills-due" id="billsDue">Due in 4 days</p>
+                    </div>
+                    <div class="bills-chips">
+                      <span class="chip-sm chip-bill">Bill</span>
+                      <span class="chip-sm chip-pending">Pending</span>
+                    </div>
+                  </div>
+
+                  <p class="bills-delta" id="billsDelta">£9.50 more than last month</p>
+
+                  <button type="button" class="bills-account">
+                    <span>Billing account <span id="billsAccount">11394857729</span></span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chev"/></svg>
+                  </button>
+                </div>
+
+                <div class="curve">
+                  <p class="dd-strip">
+                    <span id="ddStripText">Direct Debit will be taken 18 July 2026</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
+                  </p>
+                </div>
+              </div>
+
+              <div class="filter-row">
+                <button type="button" class="filter-icon-btn" aria-label="Filter charges">
+                  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-filter"/></svg>
+                </button>
+                <button type="button" class="filter-select">
+                  <span class="dot-green" aria-hidden="true"></span>
+                  <span>All plans</span>
+                  <svg class="chev" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chev-down"/></svg>
+                </button>
+              </div>
+
+              <!-- Charge rows are built from FIXTURE so there is one source of truth. -->
+              <div class="charge-list" id="chargeList"></div>
+
+              <div class="help-block">
+                <h4>Get help with this bill</h4>
+                <div class="help-tiles">
+                  <button type="button" class="help-tile">
+                    <span>
+                      <span class="help-tile-title">Need to pay late?</span>
+                      <span class="help-tile-sub">Let’s look over your options</span>
+                    </span>
+                    <svg class="chev" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chev"/></svg>
+                  </button>
+                  <button type="button" class="help-tile">
+                    <span>
+                      <span class="help-tile-title">Direct Debit</span>
+                      <span class="help-tile-sub">Need help changing a Direct Debit?</span>
+                    </span>
+                    <svg class="chev" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chev"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ---- 3.1 Screen A — the messaging conversation ------------------ -->
+          <div class="screen screen-a" id="screenA">
+            <div class="chat-header">
+              <span class="chat-back" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+              </span>
+              <p class="chat-title">O2 · Live chat</p>
+            </div>
+            <div class="chat-body" id="chatBody" aria-live="polite"></div>
+          </div>
+
+          <!-- ---- 3.4 The slide-out sheet ------------------------------------ -->
+          <div class="scrim" id="scrim"></div>
+          <section class="sheet" id="sheet" role="dialog" aria-modal="false"
+                   aria-label="Assistant" aria-hidden="true">
+            <div class="sheet-grab" id="sheetGrab" role="separator" aria-label="Drag down to dismiss"></div>
+            <button type="button" class="sheet-close" id="sheetClose" aria-label="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-close"/></svg>
+            </button>
+            <div class="sheet-body" id="sheetBody" aria-live="polite"></div>
+          </section>
+
+          <!-- ---- 7.1 Caption strip ------------------------------------------ -->
+          <div class="caption-strip" id="captionStrip" data-who="agent" aria-live="polite">
+            <p class="caption-who" id="captionWho">Assistant</p>
+            <p class="caption-text" id="captionText"></p>
+          </div>
+
+          <!-- ---- 3.3 The AI bar and microphone ------------------------------ -->
+          <div class="ai-dock" id="aiDock" data-state="idle">
+            <nav class="tab-bar" aria-label="App tabs">
+              <span class="tab-item" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-home"/></svg></span>
+              <span class="tab-item" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-history"/></svg></span>
+              <button type="button" class="tab-centre" id="tabCentre" aria-label="Start the assistant">
+                <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sparkle"/></svg>
+              </button>
+              <span class="tab-item" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-search"/></svg></span>
+              <span class="tab-item is-active" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-chat"/></svg></span>
+            </nav>
+            <button type="button" class="ai-bar" id="aiBar" data-state="idle">
+              <svg class="ai-bar-sparkle" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sparkle"/></svg>
+              <span class="ai-bar-text" id="aiBarText">Ask anything about your O2 account…</span>
+              <span class="ai-bar-right">
+                <span class="ai-levels" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="ai-bar-mic">
+                  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-mic"/></svg>
+                </span>
+              </span>
+            </button>
+          </div>
+
+          <div class="toast" id="toast" role="status"></div>
+          <div class="tooltip" id="tooltip" role="status"></div>
+          <div class="cesm-host" id="cesmHost" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================================================================
+         7. Demo controls, outside the phone so the screen stays clean.
+         =============================================================== -->
+    <div class="controls">
+      <div class="controls-row">
+        <span class="mode-indicator" id="modeIndicator" data-live="false">
+          <span class="mode-dot" aria-hidden="true"></span>
+          <span id="modeText">Scripted</span>
+        </span>
+        <button type="button" class="ctl-btn" id="btnReplay">Replay demo</button>
+        <button type="button" class="ctl-btn" id="btnDebug" aria-expanded="false" aria-controls="debugPanel">Open debug</button>
+        <span class="end-marker" id="endMarker">
+          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>
+          End of demo
+        </span>
+      </div>
+      <p class="small-print">Demo build. Illustrative data — not O2 pricing.</p>
+      <div class="debug" id="debugPanel">
+        <div class="debug-head">
+          <h3>Debug log</h3>
+          <button type="button" class="ctl-btn" id="btnCopyLog">Copy log</button>
+        </div>
+        <div class="debug-log" id="debugLog"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================================================
+     2.6 Notes and limitations
+     ======================================================================= -->
+<section class="section" aria-labelledby="notes-h">
+  <div class="wrap">
+    <h2 class="section-title" id="notes-h">Notes and limitations</h2>
+    <ul class="notes">
+      <li><strong>Mock data only.</strong> Figures are illustrative and are not O2 pricing. The account number, the device and the usage are invented for the demo.</li>
+      <li><strong>One demo account, one scripted path.</strong> The agent will answer off-script but has no data beyond the fixture, so it will generalise rather than look anything up.</li>
+      <li><strong>Phase 2 entry points are shown but inert.</strong> They are marked on the bills screen to show placement, not to be used.</li>
+      <li><strong>No payments, no card or bank details, no document sending.</strong> Those are out of scope for the demo by design, not pending work.</li>
+      <li><strong>Containment figures are indicative.</strong> They describe the shape of the opportunity and are not a forecast.</li>
+      <li><strong>The component catalogue is fixed by this page.</strong> The agent cannot invent a component or a field; anything outside the schema is rejected and returned to the agent as a structured error.</li>
+      <li><strong>Voice quality depends on the device and the room.</strong> In a noisy stakeholder session, use the scripted mode.</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+'use strict';
+
+/* ============================================================================
+   5.1 CONFIG — fill this in to connect a live agent. Nothing below needs
+   reading to do it.
+
+   If mode is "simulated", or deploymentId is empty, no <ces-messenger> element
+   is created at all: no session, no token request, no billable connection.
+   Any tool id left empty is simply not registered, and the agent falls back
+   to speech.
+   ========================================================================= */
+const CONFIG = {
+  mode: "live",                   // "simulated" | "live"
+  deploymentId: "projects/667634947008/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/deployments/a1f7e79c-698b-414d-94bc-c4d8c4e21a6d",
+  tokenBrokerUrl: "MANAGED",
+  voice: "en-GB-Chirp3-HD-Algenib",   // empty = widget default
+  languageCode: "en-GB",
+  tools: {
+    get_genui_catalog:      "projects/project-bf6872b8-4ebc-4a0f-872/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/tools/5a6de834-0c06-45bf-b78d-1382de65dbc5",
+    render_genui_component: "projects/project-bf6872b8-4ebc-4a0f-872/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/tools/3a8ab108-87c3-4cd1-8e7f-7ca64ef7b81a",
+    close_genui_surface:    "projects/project-bf6872b8-4ebc-4a0f-872/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/tools/2c180df0-ac13-4dd8-976e-317ba6164bc2"
+  }
+};
+
+/* Resource names copied out of the console routinely arrive with a leading or
+   trailing space, and a single stray space produces a name that silently never
+   matches. Normalise before anything reads them. */
+(function normaliseConfig() {
+  ['mode', 'deploymentId', 'tokenBrokerUrl', 'voice', 'languageCode'].forEach(function (key) {
+    if (typeof CONFIG[key] === 'string') CONFIG[key] = CONFIG[key].trim();
+  });
+  /* A space inside a voice name is also always a mistake. */
+  CONFIG.voice = CONFIG.voice.replace(/\s+/g, '');
+  for (const key in CONFIG.tools) {
+    if (typeof CONFIG.tools[key] === 'string') CONFIG.tools[key] = CONFIG.tools[key].trim();
+  }
+})();
+
+/* URL flags: ?debug opens the debug panel, ?phase2 makes the tactical entry
+   points live rather than inert. */
+const FLAGS = (function () {
+  const q = new URLSearchParams(window.location.search);
+  return { debug: q.has('debug'), phase2: q.has('phase2') };
+})();
+
+/* ============================================================================
+   8. Fixture data — the single source of truth for both the scripted mode and
+   the phase 2 entry contexts. Demo "today" is hard-coded so the demo never
+   drifts; Date.now() is deliberately not used anywhere.
+   ========================================================================= */
+const FIXTURE = {
+  today: { iso: '2026-07-14', label: 'Tuesday 14 July 2026' },
+  account: {
+    number: '11394857729',
+    lines: [
+      { label: 'Main line', number: '07700 900412' },
+      { label: 'Second line', number: '07700 900817' }
+    ]
+  },
+  bill: {
+    period: '2026-06',
+    period_label: 'June 2026',
+    total: '£48.50',
+    total_value: 48.50,
+    status: 'unpaid',
+    status_label: 'Not yet taken',
+    due_date_label: '18 July 2026',
+    due_in_days: 4,
+    previous: { period_label: 'May 2026', total: '£39.00', total_value: 39.00 },
+    delta: { direction: 'up', amount: '£9.50', value: 9.50 },
+    breakdown: [
+      { id: 'service_plans',  label: 'Service Plan(s)',                 sub: '2 active plans',                         amount: '£22.00',  value: 22.00, tone: 'neutral' },
+      { id: 'monthly_extras', label: 'Monthly Extras',                  sub: 'Additional products',                    amount: '£15.50',  value: 15.50, tone: 'neutral' },
+      { id: 'discounts',      label: 'Discounts',                       sub: 'Loyalty rewarded',                       amount: '−£6.00',  value: -6.00, tone: 'credit' },
+      { id: 'out_of_plan',    label: 'Outside of Plan Charges',         sub: "Things your plan doesn’t include",       amount: '£9.50',   value: 9.50,  tone: 'attention',
+        detail: 'Extra data — 4.75GB over your 30GB allowance · £9.50' },
+      { id: 'device_finance', label: 'Device Financing',                sub: 'Apple iPhone 15 Pro Max 256GB',          amount: '£6.00',   value: 6.00,  tone: 'neutral' },
+      { id: 'other',          label: 'Other Charges and Adjustments',   sub: '3 subscriptions active, 1 free 2 paid',  amount: '£1.50',   value: 1.50,  tone: 'neutral' }
+    ]
+  },
+  usage: {
+    unit: 'GB',
+    allowance: 30,
+    used: 34.75,
+    over: 4.75,
+    rate: '£2.00 per GB',
+    rate_value: 2.00,
+    total: '£9.50',
+    total_value: 9.50,
+    crossed_on: 'Friday 19 June 2026'
+  }
+};
+
+/* ============================================================================
+   Debug log (7.2). Newest first, timestamped, exposed on window.__demoLog.
+   ========================================================================= */
+const demoLog = [];
+window.__demoLog = demoLog;
+
+let logSeq = 0;
+function log(kind, label, detail) {
+  const now = new Date();
+  const stamp = String(now.getHours()).padStart(2, '0') + ':' +
+                String(now.getMinutes()).padStart(2, '0') + ':' +
+                String(now.getSeconds()).padStart(2, '0') + '.' +
+                String(now.getMilliseconds()).padStart(3, '0');
+  const entry = { seq: ++logSeq, time: stamp, kind: kind, label: label, detail: detail };
+  demoLog.unshift(entry);
+  if (demoLog.length > 400) demoLog.pop();
+  renderLogEntry(entry);
+  return entry;
+}
+
+function safeJson(value) {
+  if (value === undefined) return '';
+  try {
+    return JSON.stringify(value, function (k, v) {
+      if (v instanceof Element) return '<' + v.tagName.toLowerCase() + '>';
+      return v;
+    }, 2);
+  } catch (err) {
+    return String(value);
+  }
+}
+
+function renderLogEntry(entry) {
+  const host = document.getElementById('debugLog');
+  if (!host) return;
+  const row = document.createElement('div');
+  row.className = 'debug-entry';
+  row.setAttribute('data-kind', entry.kind);
+
+  const t = document.createElement('span');
+  t.className = 'debug-t';
+  t.textContent = entry.time + '  ';
+  row.appendChild(t);
+
+  const k = document.createElement('span');
+  k.className = 'debug-k';
+  k.textContent = '[' + entry.kind + '] ';
+  row.appendChild(k);
+
+  const l = document.createElement('span');
+  l.textContent = entry.label;
+  row.appendChild(l);
+
+  if (entry.detail !== undefined) {
+    const d = document.createElement('span');
+    d.textContent = '\n' + safeJson(entry.detail);
+    row.appendChild(d);
+  }
+  host.insertBefore(row, host.firstChild);
+}
+
+/* ============================================================================
+   DOM helpers. Everything an agent supplies goes through textContent or
+   setAttribute — there is no innerHTML in this file. Component DOM is built
+   node by node.
+   ========================================================================= */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
+
+function el(tag, opts, children) {
+  const node = document.createElement(tag);
+  opts = opts || {};
+  if (opts.className) node.className = opts.className;
+  if (opts.text !== undefined && opts.text !== null) node.textContent = String(opts.text);
+  if (opts.attrs) {
+    for (const key in opts.attrs) {
+      if (opts.attrs[key] === undefined || opts.attrs[key] === null) continue;
+      node.setAttribute(key, String(opts.attrs[key]));
+    }
+  }
+  if (opts.style) {
+    for (const key in opts.style) node.style.setProperty(key, opts.style[key]);
+  }
+  if (opts.on) {
+    for (const evt in opts.on) node.addEventListener(evt, opts.on[evt]);
+  }
+  if (children) {
+    for (let i = 0; i < children.length; i++) {
+      if (children[i]) node.appendChild(children[i]);
+    }
+  }
+  return node;
+}
+
+/* Icons come from the static sprite in the document — never from a string. */
+function icon(id, size, className) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  if (className) svg.setAttribute('class', className);
+  const use = document.createElementNS(SVG_NS, 'use');
+  use.setAttribute('href', '#' + id);
+  use.setAttributeNS(XLINK_NS, 'xlink:href', '#' + id);
+  svg.appendChild(use);
+  return svg;
+}
+
+function clear(node) {
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
+
+/* ============================================================================
+   6. The component catalogue. get_genui_catalog returns this verbatim, real
+   schemas included, so the agent never has to hold them in its instruction.
+   Patterns are strings so the whole catalogue stays JSON-serialisable.
+   ========================================================================= */
+const MONEY = '^−?£\\d{1,3}(,\\d{3})*\\.\\d{2}$';
+
+const ACTION_SCHEMA = {
+  type: 'array', maxItems: 4,
+  items: {
+    type: 'object', additionalProperties: false,
+    required: ['id', 'label', 'send'],
+    properties: {
+      id:    { type: 'string', maxLength: 40 },
+      label: { type: 'string', maxLength: 40 },
+      send:  { type: 'string', maxLength: 160 }
+    }
+  }
+};
+
+const CATALOGUE = {
+  version: '1.0',
+  surface: 'app_voice_slideout',
+  components: [
+    {
+      name: 'bill_summary_card',
+      purpose: "The whole bill in one card — what it is, whether it’s been taken, what moved since last month, and where the money went.",
+      when_to_use: 'The first answer to any question about what a bill is, or why it has changed. Use it before explaining anything in speech.',
+      schema: {
+        type: 'object', additionalProperties: false,
+        required: ['period_label', 'total', 'status', 'status_label', 'due_line', 'comparison', 'headline', 'lines'],
+        properties: {
+          period_label: { type: 'string', maxLength: 40, description: 'e.g. "June 2026"' },
+          total:        { type: 'string', pattern: MONEY, description: 'UK currency, e.g. "£48.50". Credits use the minus sign U+2212, e.g. "−£6.00".' },
+          status:       { type: 'string', enum: ['paid', 'unpaid', 'pending'] },
+          status_label: { type: 'string', maxLength: 40, description: 'e.g. "Not yet taken"' },
+          due_line:     { type: 'string', maxLength: 80, description: 'e.g. "Direct Debit due 18 July 2026"' },
+          comparison: {
+            type: 'object', additionalProperties: false,
+            required: ['direction', 'amount', 'vs_label'],
+            properties: {
+              direction: { type: 'string', enum: ['up', 'down'] },
+              amount:    { type: 'string', pattern: MONEY },
+              vs_label:  { type: 'string', maxLength: 40, description: 'e.g. "vs May 2026"' }
+            }
+          },
+          headline: { type: 'string', maxLength: 140, description: 'One sentence naming what moved.' },
+          lines: {
+            type: 'array', minItems: 1, maxItems: 10,
+            items: {
+              type: 'object', additionalProperties: false,
+              required: ['id', 'label', 'amount'],
+              properties: {
+                id:     { type: 'string', maxLength: 40 },
+                label:  { type: 'string', maxLength: 60 },
+                sub:    { type: 'string', maxLength: 80 },
+                amount: { type: 'string', pattern: MONEY },
+                tone:   { type: 'string', enum: ['neutral', 'credit', 'attention'] }
+              }
+            }
+          },
+          actions: ACTION_SCHEMA
+        }
+      }
+    },
+    {
+      name: 'usage_allowance_card',
+      purpose: 'Prove an out-of-allowance charge visually — the allowance, the overage, the date it crossed, and how the charge was calculated.',
+      when_to_use: 'When the customer queries an out-of-plan or over-allowance charge, or asks how an extra charge was worked out.',
+      schema: {
+        type: 'object', additionalProperties: false,
+        required: ['title', 'allowance', 'used', 'charge'],
+        properties: {
+          title: { type: 'string', maxLength: 60 },
+          allowance: {
+            type: 'object', additionalProperties: false,
+            required: ['label', 'value', 'unit'],
+            properties: {
+              label: { type: 'string', maxLength: 30 },
+              value: { type: 'number', minimum: 0 },
+              unit:  { type: 'string', maxLength: 10 }
+            }
+          },
+          used: {
+            type: 'object', additionalProperties: false,
+            required: ['label', 'value', 'unit'],
+            properties: {
+              label: { type: 'string', maxLength: 30 },
+              value: { type: 'number', minimum: 0 },
+              unit:  { type: 'string', maxLength: 10 }
+            }
+          },
+          over_by: {
+            type: 'object', additionalProperties: false,
+            required: ['value', 'unit'],
+            properties: {
+              value: { type: 'number', minimum: 0 },
+              unit:  { type: 'string', maxLength: 10 }
+            },
+            description: 'Must equal used.value minus allowance.value to two decimal places.'
+          },
+          crossed_on: { type: 'string', maxLength: 60, description: 'e.g. "Friday 19 June 2026"' },
+          charge: {
+            type: 'object', additionalProperties: false,
+            required: ['rate', 'total'],
+            properties: {
+              rate:  { type: 'string', maxLength: 40, description: 'e.g. "£2.00 per GB"' },
+              total: { type: 'string', pattern: MONEY }
+            }
+          },
+          note: { type: 'string', maxLength: 220 },
+          actions: ACTION_SCHEMA
+        }
+      }
+    },
+    {
+      name: 'bill_period_selector',
+      purpose: 'A short list of selectable bill periods, each with its amount and status.',
+      when_to_use: 'When it is not clear which bill the customer means and asking in speech alone would be slower.',
+      schema: {
+        type: 'object', additionalProperties: false,
+        required: ['prompt', 'periods'],
+        properties: {
+          prompt: { type: 'string', maxLength: 120 },
+          periods: {
+            type: 'array', minItems: 1, maxItems: 8,
+            items: {
+              type: 'object', additionalProperties: false,
+              required: ['id', 'label', 'amount', 'status'],
+              properties: {
+                id:     { type: 'string', maxLength: 40 },
+                label:  { type: 'string', maxLength: 40 },
+                amount: { type: 'string', pattern: MONEY },
+                status: { type: 'string', enum: ['paid', 'unpaid', 'pending'] }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      name: 'charge_detail_card',
+      purpose: 'One charge examined on its own: amount, when it applied, whether it recurs, and a plain explanation.',
+      when_to_use: 'When a single line needs explaining and putting the whole bill back on screen would be noise.',
+      schema: {
+        type: 'object', additionalProperties: false,
+        required: ['title', 'amount', 'explanation', 'is_recurring'],
+        properties: {
+          title:        { type: 'string', maxLength: 60 },
+          amount:       { type: 'string', pattern: MONEY },
+          when:         { type: 'string', maxLength: 60 },
+          explanation:  { type: 'string', maxLength: 400 },
+          is_recurring: { type: 'boolean' },
+          actions: ACTION_SCHEMA
+        }
+      }
+    }
+  ]
+};
+
+/* ============================================================================
+   4.1 The validator. One generic function driven by the schema object above —
+   no bespoke code per component. Messages name the field and the reason so
+   the agent can correct and retry once.
+   ========================================================================= */
+function validate(value, schema, path, errors) {
+  const at = path || '<root>';
+
+  if (schema.type === 'array') {
+    if (!Array.isArray(value)) {
+      errors.push('field ' + at + ': expected an array, received ' + describeType(value));
+      return;
+    }
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      errors.push('field ' + at + ': needs at least ' + schema.minItems + ' item(s), received ' + value.length);
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+      errors.push('field ' + at + ': allows at most ' + schema.maxItems + ' item(s), received ' + value.length);
+    }
+    if (schema.items) {
+      for (let i = 0; i < value.length; i++) validate(value[i], schema.items, at + '[' + i + ']', errors);
+    }
+    return;
+  }
+
+  if (schema.type === 'object') {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      errors.push('field ' + at + ': expected an object, received ' + describeType(value));
+      return;
+    }
+    const props = schema.properties || {};
+    const required = schema.required || [];
+    for (let i = 0; i < required.length; i++) {
+      if (!Object.prototype.hasOwnProperty.call(value, required[i]) || value[required[i]] === undefined) {
+        errors.push('field ' + join(at, required[i]) + ': required field is missing');
+      }
+    }
+    if (schema.additionalProperties === false) {
+      const allowed = Object.keys(props);
+      for (const key in value) {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+        if (allowed.indexOf(key) === -1) {
+          errors.push('field ' + join(at, key) + ': unexpected key. Allowed keys at ' + at + ' are: ' + allowed.join(', '));
+        }
+      }
+    }
+    for (const key in props) {
+      if (Object.prototype.hasOwnProperty.call(value, key) && value[key] !== undefined) {
+        validate(value[key], props[key], join(at, key), errors);
+      }
+    }
+    return;
+  }
+
+  if (schema.type === 'string') {
+    if (typeof value !== 'string') {
+      errors.push('field ' + at + ': expected a string, received ' + describeType(value));
+      return;
+    }
+    if (schema.minLength !== undefined && value.length < schema.minLength) {
+      errors.push('field ' + at + ': must be at least ' + schema.minLength + ' characters');
+    }
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) {
+      errors.push('field ' + at + ': must be ' + schema.maxLength + ' characters or fewer, received ' + value.length);
+    }
+    if (schema.enum && schema.enum.indexOf(value) === -1) {
+      errors.push('field ' + at + ': "' + value + '" is not allowed. Use one of: ' + schema.enum.join(', '));
+    }
+    if (schema.pattern && !new RegExp(schema.pattern).test(value)) {
+      errors.push(schema.pattern === MONEY
+        ? 'field ' + at + ': "' + value + '" is not a valid UK currency amount. Use the form £48.50, or −£6.00 for a credit (minus sign U+2212).'
+        : 'field ' + at + ': "' + value + '" does not match the required pattern ' + schema.pattern);
+    }
+    return;
+  }
+
+  if (schema.type === 'number' || schema.type === 'integer') {
+    if (typeof value !== 'number' || !isFinite(value)) {
+      errors.push('field ' + at + ': expected a number, received ' + describeType(value));
+      return;
+    }
+    if (schema.type === 'integer' && Math.floor(value) !== value) {
+      errors.push('field ' + at + ': expected a whole number, received ' + value);
+    }
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      errors.push('field ' + at + ': must be ' + schema.minimum + ' or more, received ' + value);
+    }
+    if (schema.maximum !== undefined && value > schema.maximum) {
+      errors.push('field ' + at + ': must be ' + schema.maximum + ' or less, received ' + value);
+    }
+    return;
+  }
+
+  if (schema.type === 'boolean') {
+    if (typeof value !== 'boolean') {
+      errors.push('field ' + at + ': expected true or false, received ' + describeType(value));
+    }
+  }
+}
+
+function join(base, key) {
+  return base === '<root>' ? key : base + '.' + key;
+}
+
+function describeType(value) {
+  if (value === null) return 'null';
+  if (value === undefined) return 'nothing';
+  if (Array.isArray(value)) return 'an array';
+  if (typeof value === 'string') return 'a string ("' + value + '")';
+  return typeof value;
+}
+
+/* ============================================================================
+   Component builders. Each takes a validated payload and returns an element.
+   Every agent-supplied value lands via textContent.
+   ========================================================================= */
+function actionRow(actions) {
+  if (!actions || !actions.length) return null;
+  const row = el('div', { className: 'gc-actions' });
+  for (let i = 0; i < actions.length; i++) {
+    const a = actions[i];
+    row.appendChild(el('button', {
+      className: 'gc-action',
+      text: a.label,
+      attrs: { type: 'button', 'data-action-id': a.id, 'data-send': a.send },
+      on: { click: function () { customerIntent(a.send, 'component action: ' + a.id); } }
+    }));
+  }
+  return row;
+}
+
+function heading(text, className) {
+  return el('h2', {
+    className: className,
+    attrs: { id: 'sheetHeading', tabindex: '-1' }
+  }, [document.createTextNode(String(text))]);
+}
+
+function buildBillSummaryCard(p) {
+  const root = el('div', { className: 'genui' });
+
+  const head = el('div', { className: 'gc-head' }, [
+    el('p', { className: 'gc-period', text: p.period_label }),
+    el('span', { className: 'gc-status ' + p.status, text: p.status_label })
+  ]);
+  root.appendChild(head);
+
+  const total = heading(p.total, 'gc-total');
+  total.insertBefore(el('span', { className: 'sr-only', text: 'Bill total ' }), total.firstChild);
+  root.appendChild(total);
+  root.appendChild(el('p', { className: 'gc-due', text: p.due_line }));
+
+  const cmp = p.comparison;
+  root.appendChild(el('span', { className: 'gc-compare ' + cmp.direction }, [
+    icon(cmp.direction === 'down' ? 'i-arrow-down' : 'i-arrow-up', 13),
+    el('span', { text: cmp.amount }),
+    el('span', { text: cmp.vs_label })
+  ]));
+
+  root.appendChild(el('p', { className: 'gc-headline', text: p.headline }));
+
+  const lines = el('div', { className: 'gc-lines' });
+  for (let i = 0; i < p.lines.length; i++) {
+    const ln = p.lines[i];
+    const tone = ln.tone || 'neutral';
+    const text = el('div', { className: 'gc-line-text' }, [
+      el('p', { className: 'gc-line-label', text: ln.label }),
+      ln.sub ? el('p', { className: 'gc-line-sub', text: ln.sub }) : null
+    ]);
+    lines.appendChild(el('div', {
+      className: 'gc-line' + (tone === 'attention' ? ' attention' : ''),
+      attrs: { 'data-line-id': ln.id }
+    }, [
+      text,
+      el('p', { className: 'gc-line-amount' + (tone === 'credit' ? ' credit' : tone === 'attention' ? ' attention' : ''), text: ln.amount })
+    ]));
+  }
+  root.appendChild(lines);
+
+  const actions = actionRow(p.actions);
+  if (actions) root.appendChild(actions);
+  return root;
+}
+
+function buildUsageAllowanceCard(p) {
+  const root = el('div', { className: 'genui' });
+  root.appendChild(heading(p.title, 'gu-title'));
+
+  const allowanceValue = Number(p.allowance.value);
+  const usedValue = Number(p.used.value);
+  /* Bar total width represents `used`; the blue run stops at the allowance. */
+  const withinPct = usedValue > 0 ? Math.min(100, (allowanceValue / usedValue) * 100) : 100;
+  const overPct = Math.max(0, 100 - withinPct);
+
+  const includedLabel = el('span', {
+    className: 'gu-lab-included',
+    text: format(allowanceValue) + p.allowance.unit + ' included',
+    style: { left: withinPct.toFixed(2) + '%' }
+  });
+  const labels = el('div', { className: 'gu-barlabels' }, [includedLabel]);
+  root.appendChild(labels);
+
+  const bar = el('div', { className: 'gu-bar' }, [
+    el('span', { className: 'gu-seg within', style: { width: withinPct.toFixed(2) + '%' } }),
+    el('span', { className: 'gu-seg over', style: { width: overPct.toFixed(2) + '%' } }),
+    el('span', { className: 'gu-marker', style: { left: withinPct.toFixed(2) + '%' } })
+  ]);
+  root.appendChild(bar);
+  root.appendChild(el('p', { className: 'gu-lab-used', text: format(usedValue) + p.used.unit + ' used' }));
+
+  requestAnimationFrame(function () {
+    /* Keep the allowance label above its marker, but never let it run off
+       either edge of the card. */
+    const track = labels.clientWidth;
+    const own = includedLabel.offsetWidth;
+    if (track && own) {
+      const centre = Math.max(own / 2, Math.min((withinPct / 100) * track, track - own / 2));
+      includedLabel.style.left = centre.toFixed(1) + 'px';
+    }
+    /* Animate on render: blue fills, then the red section appears. */
+    requestAnimationFrame(function () { bar.classList.add('is-filled'); });
+  });
+
+  const table = el('dl', { className: 'gu-table' });
+  if (p.over_by) {
+    table.appendChild(el('div', { className: 'gu-tr' }, [
+      el('dt', { text: 'Over by' }),
+      el('dd', { text: format(Number(p.over_by.value)) + p.over_by.unit })
+    ]));
+  }
+  table.appendChild(el('div', { className: 'gu-tr' }, [
+    el('dt', { text: 'Charged at' }),
+    el('dd', { text: p.charge.rate })
+  ]));
+  table.appendChild(el('div', { className: 'gu-tr total' }, [
+    el('dt', { text: 'Total' }),
+    el('dd', { text: p.charge.total })
+  ]));
+  root.appendChild(table);
+
+  if (p.crossed_on) {
+    root.appendChild(el('p', { className: 'gu-when' }, [
+      icon('i-calendar', 17),
+      el('span', { text: 'You went past your allowance on ' + p.crossed_on })
+    ]));
+  }
+  if (p.note) root.appendChild(el('p', { className: 'gu-note', text: p.note }));
+
+  const actions = actionRow(p.actions);
+  if (actions) root.appendChild(actions);
+  return root;
+}
+
+function buildBillPeriodSelector(p) {
+  const root = el('div', { className: 'genui' });
+  root.appendChild(heading(p.prompt, 'gp-prompt'));
+  const list = el('div', { className: 'gp-list' });
+  for (let i = 0; i < p.periods.length; i++) {
+    const period = p.periods[i];
+    const phrase = 'The ' + period.label + ' bill';
+    list.appendChild(el('button', {
+      className: 'gp-row',
+      attrs: { type: 'button', 'data-period-id': period.id, 'data-send': phrase },
+      on: { click: function () { customerIntent(phrase, 'period selected: ' + period.id); } }
+    }, [
+      el('span', { className: 'gp-label', text: period.label }),
+      el('span', { className: 'gc-status ' + period.status, text: period.status }),
+      el('span', { className: 'gp-amount', text: period.amount })
+    ]));
+  }
+  root.appendChild(list);
+  return root;
+}
+
+function buildChargeDetailCard(p) {
+  const root = el('div', { className: 'genui' });
+  root.appendChild(heading(p.title, 'gu-title'));
+  root.appendChild(el('span', { className: 'gd-chip', text: p.is_recurring ? 'Every month' : 'One-off' }));
+  root.appendChild(el('p', { className: 'gd-amount', text: p.amount }));
+  if (p.when) root.appendChild(el('p', { className: 'gd-when', text: p.when }));
+  root.appendChild(el('p', { className: 'gd-explain', text: p.explanation }));
+  const actions = actionRow(p.actions);
+  if (actions) root.appendChild(actions);
+  return root;
+}
+
+function format(n) {
+  const v = round2(n);
+  return String(v);
+}
+
+/* Cross-field rules that a schema cannot express. Returning a non-empty array
+   fails the render exactly as a schema error does. */
+const RENDERERS = {
+  bill_summary_card: { build: buildBillSummaryCard },
+  usage_allowance_card: {
+    build: buildUsageAllowanceCard,
+    check: function (p) {
+      const errs = [];
+      if (!p.over_by) return errs;
+      const allowance = Number(p.allowance.value);
+      const used = Number(p.used.value);
+      const stated = round2(p.over_by.value);
+      const actual = round2(used - allowance);
+      if (used < allowance) {
+        errs.push('field used.value: is ' + used + ' but over_by is present, which requires used.value to be at least allowance.value (' + allowance + ').');
+      }
+      if (stated !== actual) {
+        errs.push('field over_by.value: is ' + stated + ' but used.value (' + used + ') minus allowance.value (' + allowance + ') is ' + actual + '. These must agree to two decimal places.');
+      }
+      if (p.over_by.unit !== p.used.unit || p.used.unit !== p.allowance.unit) {
+        errs.push('field over_by.unit: allowance, used and over_by must all use the same unit. Received "' +
+          p.allowance.unit + '", "' + p.used.unit + '", "' + p.over_by.unit + '".');
+      }
+      return errs;
+    }
+  },
+  bill_period_selector: { build: buildBillPeriodSelector },
+  charge_detail_card: { build: buildChargeDetailCard }
+};
+
+/* ============================================================================
+   Element handles
+   ========================================================================= */
+const dom = {
+  viewport:  document.getElementById('phoneViewport'),
+  statusBar: document.getElementById('statusBar'),
+  screenA:   document.getElementById('screenA'),
+  chatBody:  document.getElementById('chatBody'),
+  billsScroll: document.getElementById('billsScroll'),
+  chargeList: document.getElementById('chargeList'),
+  scrim:     document.getElementById('scrim'),
+  sheet:     document.getElementById('sheet'),
+  sheetBody: document.getElementById('sheetBody'),
+  sheetGrab: document.getElementById('sheetGrab'),
+  sheetClose:document.getElementById('sheetClose'),
+  caption:   document.getElementById('captionStrip'),
+  captionWho:document.getElementById('captionWho'),
+  captionText:document.getElementById('captionText'),
+  aiDock:    document.getElementById('aiDock'),
+  aiBar:     document.getElementById('aiBar'),
+  aiBarText: document.getElementById('aiBarText'),
+  tabCentre: document.getElementById('tabCentre'),
+  toast:     document.getElementById('toast'),
+  tooltip:   document.getElementById('tooltip'),
+  cesmHost:  document.getElementById('cesmHost'),
+  modeIndicator: document.getElementById('modeIndicator'),
+  modeText:  document.getElementById('modeText'),
+  btnReplay: document.getElementById('btnReplay'),
+  btnDebug:  document.getElementById('btnDebug'),
+  btnCopyLog:document.getElementById('btnCopyLog'),
+  debugPanel:document.getElementById('debugPanel'),
+  debugLog:  document.getElementById('debugLog'),
+  endMarker: document.getElementById('endMarker')
+};
+
+/* Runtime state. Held in JS variables only — nothing is written to
+   localStorage, sessionStorage or cookies anywhere in this page. */
+const state = {
+  mode: CONFIG.mode,
+  screen: 'messaging',
+  barState: 'idle',
+  sheetOpen: false,
+  currentComponent: null,
+  scriptIndex: -1,
+  awaitingCustomer: false,
+  finished: false,
+  connected: false,
+  timers: [],
+  cesm: null,
+  entryContext: null,
+  micOn: false,
+  connectWatchdog: null,
+  micPoll: null,
+  quietTimer: null,
+  scriptLive: false
+};
+
+function later(fn, ms) {
+  const id = window.setTimeout(fn, ms);
+  state.timers.push(id);
+  return id;
+}
+function clearTimers() {
+  for (let i = 0; i < state.timers.length; i++) window.clearTimeout(state.timers[i]);
+  state.timers.length = 0;
+}
+
+/* ============================================================================
+   4.1 The renderer contract
+   ========================================================================= */
+function componentNames() {
+  return CATALOGUE.components.map(function (c) { return c.name; });
+}
+
+function renderComponent(args) {
+  args = args || {};
+  log('tool', 'render_genui_component called', args);
+
+  const name = args.component_name;
+  let payload = args.component_json;
+
+  /* Tool arguments sometimes arrive as a JSON string rather than an object. */
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch (err) {
+      const result = { status: 'INVALID', errors: ['field component_json: could not be parsed as JSON — ' + err.message] };
+      log('error', 'render rejected: component_json is not valid JSON', result);
+      return result;
+    }
+  }
+
+  const entry = RENDERERS[name];
+  if (!entry) {
+    const result = {
+      status: 'INVALID',
+      errors: ['unknown component: ' + String(name)],
+      available: componentNames()
+    };
+    log('error', 'render rejected: unknown component', result);
+    return result;
+  }
+
+  const descriptor = CATALOGUE.components.filter(function (c) { return c.name === name; })[0];
+  const errors = [];
+  validate(payload, descriptor.schema, '<root>', errors);
+  if (!errors.length && entry.check) Array.prototype.push.apply(errors, entry.check(payload));
+
+  if (errors.length) {
+    const result = { status: 'INVALID', errors: errors };
+    log('error', 'render rejected: ' + name + ' failed validation', result);
+    return result;
+  }
+
+  let node;
+  try {
+    node = entry.build(payload);
+  } catch (err) {
+    const result = { status: 'INVALID', errors: ['field <root>: the payload validated but could not be rendered — ' + err.message] };
+    log('error', 'render failed while building ' + name, result);
+    return result;
+  }
+
+  state.currentComponent = name;
+  Sheet.show(node);
+  log('render', 'rendered ' + name, { component: name });
+  /* Return immediately — the customer’s tap comes back later as a user turn. */
+  return { status: 'RENDERED', component: name };
+}
+
+function closeSurface() {
+  log('tool', 'close_genui_surface called');
+  Sheet.close('agent');
+  return { status: 'CLOSED' };
+}
+
+function getCatalog() {
+  log('tool', 'get_genui_catalog called', { components: componentNames() });
+  return CATALOGUE;
+}
+
+/* ============================================================================
+   4.2 Interaction return path. A tap becomes a normal user turn.
+   ========================================================================= */
+function customerIntent(phrase, why) {
+  log('intent', 'customer intent: ' + phrase, { source: why || 'component action' });
+  if (state.mode === 'live' && state.cesm && typeof state.cesm.sessionInput === 'function') {
+    try {
+      state.cesm.sessionInput(phrase);
+      setCaption('customer', phrase);
+    } catch (err) {
+      log('error', 'sessionInput failed', { message: err.message });
+    }
+    return;
+  }
+  scriptCustomerTurn(phrase);
+}
+
+/* ============================================================================
+   3.4 The slide-out sheet
+   ========================================================================= */
+const Sheet = {
+  show: function (node) {
+    if (state.sheetOpen) { this._replace(node); return; }
+    this._mount(node);
+    const target = this._naturalHeight();
+    dom.sheet.style.height = target + 'px';
+    dom.sheet.setAttribute('aria-hidden', 'false');
+    dom.scrim.classList.add('is-visible');
+    dom.sheet.classList.add('is-open');
+    state.sheetOpen = true;
+    log('state', 'sheet opened');
+    const h = document.getElementById('sheetHeading');
+    if (h) later(function () { h.focus({ preventScroll: true }); }, 60);
+  },
+
+  /* Replacing content keeps the sheet in place: cross-fade over 180ms while
+     the sheet height animates to the new content height. No flicker. */
+  _replace: function (node) {
+    const from = dom.sheet.offsetHeight;
+    dom.sheetBody.classList.add('is-fading');
+    const self = this;
+    later(function () {
+      self._mount(node);
+      const target = self._naturalHeight();
+      dom.sheet.style.height = from + 'px';
+      void dom.sheet.offsetHeight;               /* force reflow so height animates */
+      dom.sheet.style.height = target + 'px';
+      dom.sheetBody.classList.remove('is-fading');
+      log('state', 'sheet content replaced in place');
+    }, 90);
+  },
+
+  _mount: function (node) {
+    clear(dom.sheetBody);
+    dom.sheetBody.appendChild(node);
+  },
+
+  /* Re-measure after something outside the content changed its height. */
+  refit: function () {
+    if (!state.sheetOpen) return;
+    dom.sheet.style.height = this._naturalHeight() + 'px';
+  },
+
+  _naturalHeight: function () {
+    const prev = dom.sheet.style.height;
+    dom.sheet.style.height = 'auto';
+    const h = dom.sheet.offsetHeight;            /* already clamped by max-height: 62% */
+    dom.sheet.style.height = prev;
+    return h;
+  },
+
+  close: function (reason) {
+    if (!state.sheetOpen) return;
+    state.sheetOpen = false;
+    dom.sheet.classList.remove('is-open');
+    dom.sheet.setAttribute('aria-hidden', 'true');
+    dom.scrim.classList.remove('is-visible');
+    dom.sheet.style.transform = '';
+    log('state', 'sheet closed (' + (reason || 'user') + ')');
+    later(function () {
+      if (!state.sheetOpen) { clear(dom.sheetBody); dom.sheet.style.height = ''; }
+    }, 260);
+    if (reason !== 'reset') dom.aiBar.focus({ preventScroll: true });
+  },
+
+  reset: function () {
+    state.sheetOpen = false;
+    dom.sheet.classList.remove('is-open', 'is-dragging');
+    dom.sheet.setAttribute('aria-hidden', 'true');
+    dom.sheet.style.transform = '';
+    dom.sheet.style.height = '';
+    dom.scrim.classList.remove('is-visible');
+    clear(dom.sheetBody);
+  }
+};
+
+dom.sheetClose.addEventListener('click', function () { Sheet.close('close button'); });
+dom.scrim.addEventListener('click', function () { Sheet.close('scrim'); });
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && state.sheetOpen) { Sheet.close('escape'); }
+});
+
+/* Drag the handle down more than 60px to dismiss. */
+(function () {
+  let startY = null;
+  dom.sheetGrab.addEventListener('pointerdown', function (e) {
+    if (!state.sheetOpen) return;
+    startY = e.clientY;
+    dom.sheet.classList.add('is-dragging');
+    try { dom.sheetGrab.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ }
+  });
+  dom.sheetGrab.addEventListener('pointermove', function (e) {
+    if (startY === null) return;
+    const dy = Math.max(0, e.clientY - startY);
+    dom.sheet.style.transform = 'translateY(' + dy + 'px)';
+  });
+  function end(e) {
+    if (startY === null) return;
+    const dy = Math.max(0, e.clientY - startY);
+    startY = null;
+    dom.sheet.classList.remove('is-dragging');
+    dom.sheet.style.transform = '';
+    try { dom.sheetGrab.releasePointerCapture(e.pointerId); } catch (err) { /* not fatal */ }
+    if (dy > 60) Sheet.close('drag');
+  }
+  dom.sheetGrab.addEventListener('pointerup', end);
+  dom.sheetGrab.addEventListener('pointercancel', end);
+})();
+
+/* ============================================================================
+   3.3 AI bar states
+   ========================================================================= */
+const BAR_TEXT = {
+  idle: 'Ask anything about your O2 account…',
+  connecting: 'Connecting…',
+  listening: 'Listening…',
+  speaking: 'Speaking…'
+};
+
+function setBarState(next) {
+  if (state.barState === next) return;
+  state.barState = next;
+  dom.aiBar.setAttribute('data-state', next);
+  dom.aiDock.setAttribute('data-state', next);
+  dom.aiBarText.textContent = BAR_TEXT[next] || BAR_TEXT.idle;
+  log('state', 'AI bar → ' + next);
+
+  window.clearTimeout(state.connectWatchdog);
+  if (next === 'connecting') {
+    /* Never leave the bar in connecting for more than 8 seconds. */
+    state.connectWatchdog = window.setTimeout(function () {
+      if (state.barState === 'connecting') {
+        setBarState('idle');
+        showToast("The assistant didn’t connect. Try again, or run the scripted demo.");
+        log('error', 'connect watchdog fired after 8s');
+      }
+    }, 8000);
+  }
+}
+
+function showToast(text, actionLabel, onAction) {
+  clear(dom.toast);
+  dom.toast.appendChild(el('p', { text: text }));
+  if (actionLabel) {
+    dom.toast.appendChild(el('button', {
+      text: actionLabel,
+      attrs: { type: 'button' },
+      on: { click: function () { hideToast(); onAction(); } }
+    }));
+  }
+  dom.toast.classList.add('is-visible');
+  log('state', 'toast: ' + text);
+  window.clearTimeout(showToast._t);
+  showToast._t = window.setTimeout(hideToast, actionLabel ? 12000 : 5000);
+}
+function hideToast() {
+  dom.toast.classList.remove('is-visible');
+  clear(dom.toast);
+}
+
+/* ============================================================================
+   7.1 Caption strip
+   ========================================================================= */
+function setCaption(who, text, withNext) {
+  dom.caption.setAttribute('data-who', who);
+  dom.captionWho.textContent = who === 'customer' ? 'You' : 'Assistant';
+  dom.captionText.textContent = text;
+  dom.caption.classList.add('is-visible');
+  dom.sheet.classList.add('has-caption');
+
+  const old = document.getElementById('captionNext');
+  if (old) old.remove();
+  if (withNext) {
+    dom.caption.appendChild(el('button', {
+      className: 'caption-next',
+      attrs: { type: 'button', id: 'captionNext' },
+      on: { click: function () { scriptCustomerTurn(null); } }
+    }, [icon('i-play', 12), document.createTextNode('Next')]));
+  }
+
+  /* Reserve the caption's measured height at the foot of the sheet, and let an
+     already-open sheet grow into it, so nothing is hidden behind the caption. */
+  requestAnimationFrame(function () {
+    dom.sheet.style.setProperty('--caption-clear', (dom.caption.offsetHeight + 16) + 'px');
+    Sheet.refit();
+  });
+}
+function hideCaption() {
+  dom.caption.classList.remove('is-visible');
+  dom.sheet.classList.remove('has-caption');
+  dom.sheet.style.removeProperty('--caption-clear');
+  const old = document.getElementById('captionNext');
+  if (old) old.remove();
+  dom.captionText.textContent = '';
+}
+
+/* ============================================================================
+   3.1 Screen A — the hard-coded messaging conversation
+   ========================================================================= */
+const CHAT_SCRIPT = [
+  { who: 'bot', text: "Hi, you’re through to O2. What can I help with today?", time: '09:39' },
+  { who: 'customer', text: 'I need to have a look at my bill', time: '09:40' },
+  { who: 'bot', text: 'No problem — I can take you straight to your bills.', time: '09:40' },
+  { who: 'bot', text: "Our AI assistant can talk you through it there, and it’ll already know what you’ve asked me. Nothing to repeat.", time: '09:40' },
+  { who: 'card', title: 'Open my bills', sub: 'Opens in the My O2 app', button: 'Open my bills', time: '09:41' }
+];
+
+function playChatScript() {
+  clear(dom.chatBody);
+  let t = 300;
+  for (let i = 0; i < CHAT_SCRIPT.length; i++) {
+    const step = CHAT_SCRIPT[i];
+    if (step.who === 'customer') {
+      later(makeCustomerMessage(step), t);
+      t += 450;
+    } else {
+      later(showTyping, t);
+      t += 600;
+      later(makeBotMessage(step), t);
+      t += 450;
+    }
+  }
+}
+
+function showTyping() {
+  removeTyping();
+  const dots = el('div', { className: 'typing', attrs: { id: 'chatTyping', 'aria-hidden': 'true' } },
+    [el('span'), el('span'), el('span')]);
+  dom.chatBody.appendChild(dots);
+  dom.chatBody.scrollTop = dom.chatBody.scrollHeight;
+}
+function removeTyping() {
+  const t = document.getElementById('chatTyping');
+  if (t) t.remove();
+}
+
+function makeCustomerMessage(step) {
+  return function () {
+    dom.chatBody.appendChild(el('div', { className: 'msg from-customer' }, [
+      el('p', { className: 'msg-bubble', text: step.text }),
+      el('p', { className: 'msg-time', text: step.time })
+    ]));
+    dom.chatBody.scrollTop = dom.chatBody.scrollHeight;
+  };
+}
+
+function makeBotMessage(step) {
+  return function () {
+    removeTyping();
+    if (step.who === 'card') {
+      dom.chatBody.appendChild(el('div', { className: 'deeplink-card' }, [
+        el('h4', { text: step.title }),
+        el('p', { text: step.sub }),
+        el('button', {
+          className: 'btn-primary',
+          text: step.button,
+          attrs: { type: 'button', id: 'deepLinkBtn' },
+          on: { click: onDeepLink }
+        }),
+        el('p', { className: 'msg-time', text: step.time, style: { 'margin-top': '8px' } })
+      ]));
+    } else {
+      dom.chatBody.appendChild(el('div', { className: 'msg from-bot' }, [
+        el('p', { className: 'msg-bubble', text: step.text }),
+        el('p', { className: 'msg-time', text: step.time })
+      ]));
+    }
+    dom.chatBody.scrollTop = dom.chatBody.scrollHeight;
+  };
+}
+
+/* ============================================================================
+   5.2 Entry context
+   ========================================================================= */
+function buildEntryContext(entryPoint, extra) {
+  const ctx = {
+    entry_point: entryPoint,
+    channel: 'app_voice',
+    nlu_intent: 'Billing',
+    customer_utterance: 'I need to have a look at my bill',
+    surface: 'bills_home',
+    bill_period: FIXTURE.bill.period,
+    demo: true
+  };
+  if (extra) { for (const k in extra) ctx[k] = extra[k]; }
+  return ctx;
+}
+
+/* A single compact line the agent reads as hidden context. */
+function entryContextLine(ctx) {
+  return '[ENTRY] channel=' + ctx.channel +
+         ' entry_point=' + ctx.entry_point +
+         ' intent=' + ctx.nlu_intent +
+         ' surface=' + ctx.surface +
+         (ctx.charge_id ? ' charge_id=' + ctx.charge_id : '') +
+         ' said="' + ctx.customer_utterance + '"';
+}
+
+/* ============================================================================
+   Screen A → Screen B, and starting the agent
+   ========================================================================= */
+function goToBills() {
+  if (state.screen === 'bills') return;
+  state.screen = 'bills';
+  dom.screenA.classList.add('is-gone');
+  dom.statusBar.classList.add('on-dark');
+  dom.aiDock.classList.add('is-shown');
+  syncStatusBar();
+  log('state', 'screen A → screen B');
+}
+
+function onDeepLink() {
+  const ctx = buildEntryContext('messaging_deeplink');
+  log('state', 'deep link pressed', ctx);
+  goToBills();
+  startAgent(ctx);
+}
+
+function startAgent(ctx) {
+  if (state.mode === 'live' && CONFIG.deploymentId) {
+    startLiveSession(ctx);
+  } else {
+    if (state.mode === 'live' && !CONFIG.deploymentId) {
+      log('error', 'CONFIG.mode is "live" but deploymentId is empty — running the scripted sequence instead');
+      showToast('No deployment id configured. Running the scripted demo.');
+    }
+    startScript();
+  }
+  updateModeIndicator();
+}
+
+/* ============================================================================
+   7.1 Scripted mode — the exact conversation, no backend.
+   ========================================================================= */
+function billSummaryPayload() {
+  const b = FIXTURE.bill;
+  return {
+    period_label: b.period_label,
+    total: b.total,
+    status: b.status,
+    status_label: b.status_label,
+    due_line: 'Direct Debit due ' + b.due_date_label,
+    comparison: { direction: b.delta.direction, amount: b.delta.amount, vs_label: 'vs ' + b.previous.period_label },
+    headline: 'The whole difference is in out-of-plan charges.',
+    lines: b.breakdown.map(function (row) {
+      return {
+        id: row.id,
+        label: row.label,
+        sub: row.id === 'out_of_plan'
+          ? 'Extra data — ' + FIXTURE.usage.over + FIXTURE.usage.unit + ' over allowance'
+          : row.sub,
+        amount: row.amount,
+        tone: row.tone
+      };
+    }),
+    actions: [
+      { id: 'explain_line', label: "What’s this charge?", send: "What’s the out of plan charge?" },
+      { id: 'show_usage', label: 'Show my usage', send: 'Show me my usage' }
+    ]
+  };
+}
+
+function usagePayload() {
+  const u = FIXTURE.usage;
+  return {
+    title: 'Data used in ' + FIXTURE.bill.period_label.split(' ')[0],
+    allowance: { label: 'Included', value: u.allowance, unit: u.unit },
+    used: { label: 'Used', value: u.used, unit: u.unit },
+    over_by: { value: u.over, unit: u.unit },
+    crossed_on: u.crossed_on,
+    charge: { rate: u.rate, total: u.total },
+    note: 'Anything past your allowance is charged separately and shows under Outside of Plan Charges.',
+    actions: [
+      { id: 'spend_cap', label: 'Stop this happening again', send: 'How do I stop this happening again?' }
+    ]
+  };
+}
+
+const SCRIPT = [
+  { who: 'agent', text: 'Hi — I can help with your bill. Which one do you need? Your most recent bill, or an earlier one?' },
+  { who: 'customer', text: "Last month’s" },
+  { who: 'agent',
+    text: "I’ve put your June bill on your screen. It’s forty-eight pounds fifty, due on the eighteenth, and it hasn’t been taken yet. It’s nine pounds fifty more than May — and that whole difference is out-of-plan charges.",
+    render: 'bill_summary_card' },
+  { who: 'customer', text: "I don’t recognise that charge for going past my data allowance" },
+  { who: 'agent',
+    text: "That’s extra data. Your plan includes thirty gigabytes and you used just under thirty-five — you went past it on Friday the nineteenth of June. Anything over is two pounds a gigabyte, which came to nine pounds fifty. Would you like me to show you how to stop that happening again?",
+    render: 'usage_allowance_card' }
+];
+
+const PAYLOADS = {
+  bill_summary_card: billSummaryPayload,
+  usage_allowance_card: usagePayload
+};
+
+/* 900ms of speaking per ~15 words, minimum 1.4s. */
+function speakDuration(text) {
+  const words = text.split(/\s+/).length;
+  return Math.max(1400, Math.round((words / 15) * 900));
+}
+
+function startScript() {
+  state.scriptLive = true;
+  state.scriptIndex = -1;
+  state.finished = false;
+  dom.endMarker.classList.remove('is-visible');
+  dom.btnReplay.classList.remove('is-emphasised');
+  log('state', 'scripted sequence started');
+  scriptNext();
+}
+
+function scriptNext() {
+  state.scriptIndex++;
+  const step = SCRIPT[state.scriptIndex];
+  if (!step) { endDemo(); return; }
+  /* scriptNext always lands on an agent turn; customer turns are advanced by
+     the presenter through scriptCustomerTurn. */
+  if (step.who === 'agent') playAgentTurn(step);
+  else log('error', 'script desynchronised at step ' + state.scriptIndex);
+}
+
+function playAgentTurn(step) {
+  state.awaitingCustomer = false;
+  setBarState('speaking');
+  setCaption('agent', step.text, false);
+
+  if (step.render) {
+    later(function () {
+      renderComponent({ component_name: step.render, component_json: PAYLOADS[step.render]() });
+    }, 400);
+  }
+
+  later(function () {
+    setBarState('idle');
+    const upcoming = SCRIPT[state.scriptIndex + 1];
+    if (!upcoming) { endDemo(); return; }
+    state.scriptIndex++;
+    state.awaitingCustomer = true;
+    setCaption('agent', step.text, true);
+  }, speakDuration(step.text));
+}
+
+/* Advances the scripted customer turn. `phrase` overrides the scripted line
+   when the customer taps an action inside a rendered component. */
+function scriptCustomerTurn(phrase) {
+  if (state.mode === 'live') return;
+  if (!state.scriptLive) return;
+  const step = SCRIPT[state.scriptIndex];
+  if (!state.awaitingCustomer || !step || step.who !== 'customer') {
+    if (phrase) log('state', 'off-script tap ignored in scripted mode: ' + phrase);
+    return;
+  }
+  state.awaitingCustomer = false;
+  setCaption('customer', phrase || step.text, false);
+  setBarState('listening');
+  later(function () { scriptNext(); }, 1100);
+}
+
+function endDemo() {
+  state.finished = true;
+  state.scriptLive = false;
+  setBarState('idle');
+  dom.endMarker.classList.add('is-visible');
+  dom.btnReplay.classList.add('is-emphasised');
+  log('state', 'scripted sequence complete');
+}
+
+/* ============================================================================
+   Replay — full reset, including tearing down any live session.
+   ========================================================================= */
+function replay() {
+  clearTimers();
+  window.clearTimeout(state.connectWatchdog);
+  window.clearInterval(state.micPoll);
+  window.clearTimeout(state.quietTimer);
+  teardownLiveSession();
+
+  state.screen = 'messaging';
+  state.scriptIndex = -1;
+  state.awaitingCustomer = false;
+  state.finished = false;
+  state.scriptLive = false;
+  state.currentComponent = null;
+  state.micOn = false;
+  state.barState = 'x';                       /* force setBarState to apply */
+
+  Sheet.reset();
+  hideCaption();
+  hideToast();
+  hideTooltip();
+  setBarState('idle');
+
+  dom.screenA.classList.remove('is-gone');
+  dom.statusBar.classList.remove('on-dark');
+  dom.aiDock.classList.remove('is-shown');
+  dom.billsScroll.scrollTop = 0;
+  dom.endMarker.classList.remove('is-visible');
+  dom.btnReplay.classList.remove('is-emphasised');
+  collapseAllCharges();
+  playChatScript();
+  updateModeIndicator();
+  log('state', 'demo reset');
+}
+
+/* The status bar sits over the navy header at rest, and flips back to dark ink
+   once the bills screen has been scrolled past it. */
+function syncStatusBar() {
+  if (state.screen !== 'bills') { dom.statusBar.classList.remove('on-dark'); return; }
+  const header = document.querySelector('.bills-header');
+  const threshold = header ? header.offsetHeight - 60 : 190;
+  dom.statusBar.classList.toggle('on-dark', dom.billsScroll.scrollTop < threshold);
+}
+dom.billsScroll.addEventListener('scroll', syncStatusBar, { passive: true });
+
+/* ============================================================================
+   3.2 Charge list, built from FIXTURE
+   ========================================================================= */
+function collapseAllCharges() {
+  const rows = dom.chargeList.querySelectorAll('.charge-row[aria-expanded="true"]');
+  for (let i = 0; i < rows.length; i++) {
+    rows[i].setAttribute('aria-expanded', 'false');
+    const panel = document.getElementById(rows[i].getAttribute('aria-controls'));
+    if (panel) panel.classList.remove('is-open');
+  }
+}
+
+function buildChargeList() {
+  clear(dom.chargeList);
+  const rows = FIXTURE.bill.breakdown;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const panelId = 'charge-detail-' + row.id;
+    const card = el('div', { className: 'charge-card' });
+
+    const detail = el('div', { className: 'charge-detail', attrs: { id: panelId } });
+    if (row.detail) {
+      detail.appendChild(el('p', { text: row.detail }));
+      /* Phase 2 marker: a tactical entry point on the individual line. */
+      const link = el('button', {
+        className: 'link-query',
+        attrs: { type: 'button' },
+        on: { click: function () { onPhase2('Query this charge', row.id, link); } }
+      }, [
+        document.createTextNode('Query this charge'),
+        el('span', { className: 'pill-phase2', text: 'Phase 2' })
+      ]);
+      detail.appendChild(link);
+    } else {
+      detail.appendChild(el('p', { text: 'This part of your bill has not changed this month.' }));
+    }
+
+    const button = el('button', {
+      className: 'charge-row',
+      attrs: {
+        type: 'button', 'aria-expanded': 'false', 'aria-controls': panelId
+      },
+      on: {
+        click: function () {
+          const open = button.getAttribute('aria-expanded') === 'true';
+          button.setAttribute('aria-expanded', open ? 'false' : 'true');
+          detail.classList.toggle('is-open', !open);
+        }
+      }
+    }, [
+      el('span', { className: 'charge-text' }, [
+        el('span', { className: 'charge-title', text: row.label }),
+        el('span', { className: 'charge-sub', text: row.sub })
+      ]),
+      el('span', { className: 'charge-amount' + (row.value < 0 ? ' credit' : ''), text: row.amount }),
+      icon('i-chev', 16, 'chev')
+    ]);
+
+    card.appendChild(button);
+    card.appendChild(detail);
+    dom.chargeList.appendChild(card);
+  }
+
+  /* Phase 2 marker: a tactical entry point at the foot of the bill. */
+  const explain = el('button', {
+    className: 'btn-secondary',
+    attrs: { type: 'button' },
+    on: { click: function () { onPhase2('Explain my bill', null, explain); } }
+  }, [
+    document.createTextNode('Explain my bill'),
+    el('span', { className: 'pill-phase2', text: 'Phase 2' })
+  ]);
+  dom.chargeList.appendChild(explain);
+}
+
+/* Inert by default; live under ?phase2. */
+function onPhase2(label, chargeId, anchor) {
+  if (!FLAGS.phase2) {
+    showTooltip(anchor, 'Tactical entry point — enabled after containment is proven.');
+    log('state', 'phase 2 marker tapped (inert): ' + label);
+    return;
+  }
+  const ctx = buildEntryContext('in_app_tactical', chargeId
+    ? { charge_id: chargeId, customer_utterance: 'What is this charge?' }
+    : { customer_utterance: 'Explain my bill' });
+  log('state', 'phase 2 entry point used: ' + label, ctx);
+  goToBills();
+  startAgent(ctx);
+}
+
+function showTooltip(anchor, text) {
+  dom.tooltip.textContent = text;
+  dom.tooltip.classList.add('is-visible');
+  const a = anchor.getBoundingClientRect();
+  const v = dom.viewport.getBoundingClientRect();
+  const width = Math.min(250, v.width - 32);
+  dom.tooltip.style.width = width + 'px';
+  let left = a.left - v.left + (a.width / 2) - (width / 2);
+  left = Math.max(12, Math.min(left, v.width - width - 12));
+  dom.tooltip.style.left = left + 'px';
+  dom.tooltip.style.top = Math.max(56, a.top - v.top - 52) + 'px';
+  window.clearTimeout(showTooltip._t);
+  showTooltip._t = window.setTimeout(hideTooltip, 3200);
+}
+function hideTooltip() { dom.tooltip.classList.remove('is-visible'); }
+
+/* ============================================================================
+   5.3–5.6 Live agent integration
+   ========================================================================= */
+const MESSENGER_SRC = 'https://www.gstatic.com/ces-console/fast/ces-messenger/ces-messenger.js';
+
+/* The widget script is fetched lazily, only when a live session is started, so
+   simulated mode makes no network calls at all. */
+function loadMessengerScript(onReady, onFail) {
+  if (window.customElements && window.customElements.get('ces-messenger')) { onReady(); return; }
+  const existing = document.getElementById('cesMessengerScript');
+  if (existing) { existing.addEventListener('load', onReady); return; }
+  const s = document.createElement('script');
+  s.id = 'cesMessengerScript';
+  s.src = MESSENGER_SRC;
+  s.addEventListener('load', function () { log('state', 'ces-messenger script loaded'); onReady(); });
+  s.addEventListener('error', function () { onFail(); });
+  document.head.appendChild(s);
+}
+
+const WIDGET_CSS = [
+  '.close-button { display: none !important; }',
+  '.talk-button  { visibility: hidden !important; }',
+  '.voice-assistant-container { position: relative !important; width: 100% !important; height: 100% !important; margin: 0 !important; }',
+  'main { margin: 0 !important; padding: 0 !important; }'
+].join('\n');
+
+function startLiveSession(ctx) {
+  if (state.cesm) { toggleMic(); return; }
+  setBarState('connecting');
+  loadMessengerScript(function () { createWidget(ctx); }, function () {
+    setBarState('idle');
+    log('error', 'ces-messenger script failed to load');
+    showToast("Couldn’t load the assistant.", 'Run scripted demo instead', switchToSimulated);
+  });
+}
+
+function createWidget(ctx) {
+  const line = entryContextLine(ctx);
+  const cesm = document.createElement('ces-messenger');
+  cesm.setAttribute('deployment-id', CONFIG.deploymentId);
+  cesm.setAttribute('token-broker-url', CONFIG.tokenBrokerUrl);
+  cesm.setAttribute('language-code', CONFIG.languageCode || 'en-GB');
+  cesm.setAttribute('audio-input-mode', 'DEFAULT_OFF');
+  cesm.setAttribute('audio-output-mode', 'DEFAULT_ON');
+  cesm.setAttribute('modality', 'chat');
+  cesm.setAttribute('size', 'small');
+  cesm.setAttribute('auto-open-chat', 'true');
+  cesm.setAttribute('initial-message', line);
+  cesm.setAttribute('custom-css', WIDGET_CSS);
+  if (CONFIG.voice) cesm.setAttribute('voice', CONFIG.voice);
+
+  dom.cesmHost.appendChild(cesm);
+  state.cesm = cesm;
+  state.entryContext = ctx;
+  log('state', 'ces-messenger created', { initialMessage: line, deploymentId: CONFIG.deploymentId });
+
+  /* The widget opens a bidirectional audio stream as soon as it connects —
+     DEFAULT_OFF only hides its own button. That is why the element is not
+     created until the customer opts in. */
+  if (cesm.shadowRoot) onMessengerLoaded();
+}
+
+function teardownLiveSession() {
+  if (!state.cesm) return;
+  try { state.cesm.remove(); } catch (err) { /* not fatal */ }
+  state.cesm = null;
+  state.connected = false;
+  log('state', 'live session torn down');
+}
+
+function switchToSimulated() {
+  teardownLiveSession();
+  state.mode = 'simulated';
+  updateModeIndicator();
+  log('state', 'switched to simulated mode without reload');
+  startScript();
+}
+
+function shadow() {
+  return state.cesm && state.cesm.shadowRoot ? state.cesm.shadowRoot : null;
+}
+
+/* The widget’s real microphone control lives inside its shadow root. */
+function toggleMic() {
+  const sr = shadow();
+  if (!sr) {
+    log('error', 'shadow root not available yet');
+    setBarState('connecting');
+    return;
+  }
+  const talk = sr.querySelector('.talk-button') || sr.querySelector('.mic-container');
+  const reconnect = sr.querySelector('.reconnect-button');
+
+  if (!talk && reconnect) {
+    log('state', 'session not started — clicking reconnect');
+    reconnect.click();
+    setBarState('connecting');
+    pollForTalkButton();
+    return;
+  }
+  if (talk) {
+    talk.click();
+    state.micOn = !state.micOn;
+    setBarState(state.micOn ? 'listening' : 'idle');
+    return;
+  }
+  log('error', 'neither talk nor reconnect button found in shadow root');
+}
+
+function pollForTalkButton() {
+  window.clearInterval(state.micPoll);
+  const started = Date.now();
+  state.micPoll = window.setInterval(function () {
+    const sr = shadow();
+    const talk = sr && (sr.querySelector('.talk-button') || sr.querySelector('.mic-container'));
+    if (talk) {
+      window.clearInterval(state.micPoll);
+      talk.click();
+      state.micOn = true;
+      setBarState('listening');
+      log('state', 'talk button appeared and was clicked');
+      return;
+    }
+    if (Date.now() - started > 8000) {
+      window.clearInterval(state.micPoll);
+      setBarState('idle');
+      showToast("The assistant didn’t connect.", 'Run scripted demo instead', switchToSimulated);
+      log('error', 'timed out waiting for the talk button');
+    }
+  }, 150);
+}
+
+/* ---- 5.4 Client function registration ------------------------------------ */
+function onMessengerLoaded() {
+  const cesm = state.cesm;
+  if (!cesm) return;
+  log('state', 'ces-messenger-loaded');
+
+  if (typeof cesm.setQueryParameters === 'function' && state.entryContext) {
+    try {
+      cesm.setQueryParameters(state.entryContext);
+      log('state', 'setQueryParameters sent', state.entryContext);
+    } catch (err) {
+      log('error', 'setQueryParameters failed', { message: err.message });
+    }
+  }
+
+  registerTool('get_genui_catalog', function () { return Promise.resolve(getCatalog()); });
+  registerTool('render_genui_component', function (args) { return Promise.resolve(renderComponent(args)); });
+  registerTool('close_genui_surface', function () { return Promise.resolve(closeSurface()); });
+}
+
+function projectOf(resourceName) {
+  const m = /^projects\/([^/]+)\//.exec(resourceName || '');
+  return m ? m[1] : '';
+}
+
+function appOf(resourceName) {
+  const m = /\/apps\/([^/]+)\//.exec(resourceName || '');
+  return m ? m[1] : '';
+}
+
+/* A tool is matched by exact resource name. A project can be addressed by its
+   number or by its id, and the console and the runtime do not always agree on
+   which — so if the deployment id and the tool ids disagree, register the tool
+   under both spellings rather than guessing. Registering a name the agent
+   never calls costs nothing; missing the one it does call is silent failure. */
+function toolNameVariants(toolName) {
+  const names = [toolName];
+  const fromDeployment = projectOf(CONFIG.deploymentId);
+  const fromTool = projectOf(toolName);
+  if (fromDeployment && fromTool && fromDeployment !== fromTool) {
+    names.push(toolName.replace('projects/' + fromTool + '/', 'projects/' + fromDeployment + '/'));
+  }
+  return names;
+}
+
+function registerTool(displayName, handler) {
+  const toolName = CONFIG.tools[displayName];
+  if (!toolName) {
+    log('state', 'tool not configured, skipping registration: ' + displayName);
+    return;
+  }
+  const cesm = state.cesm;
+  if (!cesm || typeof cesm.registerClientSideFunction !== 'function') {
+    log('error', 'registerClientSideFunction unavailable for ' + displayName);
+    return;
+  }
+  const names = toolNameVariants(toolName);
+  for (let i = 0; i < names.length; i++) {
+    cesm.registerClientSideFunction(
+      { toolName: names[i], toolDisplayName: displayName },
+      function (args) { return handler(args); }
+    );
+  }
+  log('state', 'registered client function ' + displayName, { toolNames: names });
+}
+
+/* ---- 5.5 Events ----------------------------------------------------------- */
+function quietSoon() {
+  window.clearTimeout(state.quietTimer);
+  state.quietTimer = window.setTimeout(function () {
+    if (state.barState === 'speaking') setBarState('idle');
+  }, 2600);
+}
+
+function detailOf(e) {
+  return e && e.detail !== undefined ? e.detail : null;
+}
+
+function wireWidgetEvents() {
+  window.addEventListener('ces-messenger-loaded', function (e) {
+    log('event', 'ces-messenger-loaded', detailOf(e));
+    onMessengerLoaded();
+  });
+  window.addEventListener('ces-messenger-connected', function (e) {
+    log('event', 'ces-messenger-connected', detailOf(e));
+    state.connected = true;
+    updateModeIndicator();
+    setBarState('idle');
+  });
+  window.addEventListener('ces-messenger-disconnected', function (e) {
+    log('event', 'ces-messenger-disconnected', detailOf(e));
+    state.connected = false;
+    state.micOn = false;
+    updateModeIndicator();
+    setBarState('idle');
+    /* Keep any rendered component on screen. */
+    showToast('The assistant disconnected.');
+  });
+  window.addEventListener('ces-authentication-error', function (e) {
+    log('error', 'ces-authentication-error', detailOf(e));
+    setBarState('idle');
+    showToast("Couldn’t connect the assistant.", 'Run scripted demo instead', switchToSimulated);
+  });
+  window.addEventListener('ces-tool-call-received', function (e) {
+    /* Ground truth that a tool fired — the console display name is not. */
+    log('tool', 'ces-tool-call-received', detailOf(e));
+  });
+  window.addEventListener('ces-tool-response-sent', function (e) {
+    log('tool', 'ces-tool-response-sent', detailOf(e));
+  });
+  window.addEventListener('ces-text-received', function (e) {
+    const d = detailOf(e);
+    log('event', 'ces-text-received', d);
+    const text = pickText(d);
+    if (text) setCaption('agent', text, false);
+    setBarState('speaking');
+    quietSoon();
+  });
+  window.addEventListener('ces-transcript-received', function (e) {
+    const d = detailOf(e);
+    log('event', 'ces-transcript-received', d);
+    const text = pickText(d);
+    if (text) setCaption('customer', text, false);
+    setBarState('listening');
+  });
+  window.addEventListener('ces-user-input-entered', function (e) {
+    log('event', 'ces-user-input-entered', detailOf(e));
+  });
+}
+
+function pickText(d) {
+  if (!d) return '';
+  if (typeof d === 'string') return d;
+  return d.text || d.transcript || d.message || d.content || '';
+}
+
+/* ============================================================================
+   Controls, flags and boot
+   ========================================================================= */
+function updateModeIndicator() {
+  const live = state.mode === 'live' && !!CONFIG.deploymentId;
+  dom.modeText.textContent = live ? 'Live agent' : 'Scripted';
+  dom.modeIndicator.setAttribute('data-live', state.connected ? 'true' : 'false');
+}
+
+function onAiBarPress() {
+  if (state.mode === 'live' && CONFIG.deploymentId) {
+    if (!state.cesm) { startLiveSession(state.entryContext || buildEntryContext('in_app_tactical')); }
+    else { toggleMic(); }
+    return;
+  }
+  /* Scripted mode: the bar starts the sequence, then the script drives it. */
+  if (!state.scriptLive && !state.finished) { goToBills(); startScript(); }
+  else if (state.finished) { replay(); }
+  else { log('state', 'AI bar pressed while the scripted sequence is running — ignored'); }
+}
+
+dom.aiBar.addEventListener('click', onAiBarPress);
+dom.tabCentre.addEventListener('click', onAiBarPress);
+dom.btnReplay.addEventListener('click', replay);
+dom.btnDebug.addEventListener('click', function () {
+  const open = dom.debugPanel.classList.toggle('is-open');
+  dom.btnDebug.setAttribute('aria-expanded', open ? 'true' : 'false');
+  dom.btnDebug.textContent = open ? 'Close debug' : 'Open debug';
+});
+dom.btnCopyLog.addEventListener('click', function () {
+  const text = demoLog.map(function (e) {
+    return e.time + ' [' + e.kind + '] ' + e.label + (e.detail !== undefined ? '\n' + safeJson(e.detail) : '');
+  }).join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () {
+      dom.btnCopyLog.textContent = 'Copied';
+      window.setTimeout(function () { dom.btnCopyLog.textContent = 'Copy log'; }, 1600);
+    }, function () { dom.btnCopyLog.textContent = 'Copy failed'; });
+  }
+});
+
+/* 8. Fixture assertions — logged to the debug panel. */
+function assertFixture() {
+  const b = FIXTURE.bill;
+  const sum = round2(b.breakdown.reduce(function (acc, row) { return acc + row.value; }, 0));
+  if (sum !== b.total_value) {
+    log('error', 'FIXTURE breakdown does not sum to the bill total', { sum: sum, total: b.total_value });
+  } else {
+    log('fixture', 'breakdown sums to ' + b.total + ' — ' + b.breakdown.length + ' lines', { sum: sum });
+  }
+  const u = FIXTURE.usage;
+  if (round2(u.used - u.allowance) !== round2(u.over)) {
+    log('error', 'FIXTURE usage arithmetic is wrong', { used: u.used, allowance: u.allowance, over: u.over });
+  } else if (round2(u.over * u.rate_value) !== round2(u.total_value)) {
+    log('error', 'FIXTURE usage charge does not match the rate', { over: u.over, rate: u.rate_value, total: u.total_value });
+  } else {
+    log('fixture', 'usage arithmetic checks out: ' + u.over + u.unit + ' over at ' + u.rate + ' = ' + u.total);
+  }
+}
+
+function paintFixtureIntoBillsScreen() {
+  const b = FIXTURE.bill;
+  document.getElementById('billsAmount').textContent = b.total;
+  document.getElementById('billsDue').textContent = 'Due in ' + b.due_in_days + ' days';
+  document.getElementById('billsDelta').textContent = b.delta.amount + ' more than last month';
+  document.getElementById('billsAccount').textContent = FIXTURE.account.number;
+  document.getElementById('ddStripText').textContent = 'Direct Debit will be taken ' + b.due_date_label;
+}
+
+function boot() {
+  wireWidgetEvents();
+  /* Pin --dock-h to the dock’s measured height so the sheet always rises to
+     exactly the top of the AI bar. */
+  dom.viewport.style.setProperty('--dock-h', dom.aiDock.offsetHeight + 'px');
+  paintFixtureIntoBillsScreen();
+  buildChargeList();
+  assertFixture();
+  playChatScript();
+  updateModeIndicator();
+
+  if (FLAGS.debug) {
+    dom.debugPanel.classList.add('is-open');
+    dom.btnDebug.setAttribute('aria-expanded', 'true');
+    dom.btnDebug.textContent = 'Close debug';
+  }
+  log('state', 'demo ready', {
+    mode: state.mode,
+    phase2: FLAGS.phase2,
+    debug: FLAGS.debug,
+    deploymentId: CONFIG.deploymentId || '(none)',
+    voice: CONFIG.voice || '(widget default)',
+    today: FIXTURE.today.label
+  });
+
+  /* Surface the project-form mismatch up front rather than leaving it to be
+     discovered as a tool call that never arrives. */
+  const configuredTools = Object.keys(CONFIG.tools).filter(function (k) { return CONFIG.tools[k]; });
+  const mismatched = configuredTools.filter(function (k) {
+    return projectOf(CONFIG.tools[k]) !== projectOf(CONFIG.deploymentId);
+  });
+  if (mismatched.length) {
+    log('error', 'deployment and tool ids name the project differently — each tool will be registered under both forms', {
+      deploymentProject: projectOf(CONFIG.deploymentId),
+      toolProject: projectOf(CONFIG.tools[mismatched[0]]),
+      tools: mismatched
+    });
+  }
+
+  /* The project segment has two legitimate spellings; the app segment has one.
+     A tool belongs to an app, so a tool id carrying a different app id than the
+     deployment can never be called — and nothing at runtime says so. Worth
+     catching on boot, particularly just after a move between projects. */
+  const wrongApp = configuredTools.filter(function (k) {
+    return appOf(CONFIG.tools[k]) !== appOf(CONFIG.deploymentId);
+  });
+  if (wrongApp.length) {
+    log('error', 'tool ids belong to a different app than the deployment — these tools will never be called', {
+      deploymentApp: appOf(CONFIG.deploymentId),
+      toolApp: appOf(CONFIG.tools[wrongApp[0]]),
+      tools: wrongApp
+    });
+  }
+}
+
+/* Exposed for console-driven checks during a build or a stakeholder session. */
+window.__demo = {
+  renderComponent: renderComponent,
+  closeSurface: closeSurface,
+  getCatalog: getCatalog,
+  setBarState: setBarState,
+  sheet: Sheet,
+  fixture: FIXTURE,
+  config: CONFIG,
+  state: state,
+  replay: replay
+};
+
+boot();
+</script>
+</body>
+</html>
