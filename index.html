@@ -3286,7 +3286,10 @@ const fbState = {
   componentCss: '',
   /* label → phrase, so the interaction return path does not depend on any
      attribute surviving the widget's sanitiser. */
-  actionMap: {}
+  actionMap: {},
+  interactionWired: false,
+  lastTapPhrase: '',
+  lastTapAt: 0
 };
 
 /* Frame B writes into the same panel and the same window.__demoLog array as
@@ -3697,15 +3700,33 @@ fbDom.thread.addEventListener('click', function (e) {
 
 function fbCustomerIntent(phrase) {
   if (fbState.mode === 'live' && fbState.cesm && typeof fbState.cesm.sessionInput === 'function') {
+    /* The documented sequence: show the turn in the transcript, then send it.
+       sessionInput on its own does not echo the customer, so without the
+       insertMessage the tap would look like it did nothing. */
     try {
-      fbAppendCustomerText(phrase);
+      if (typeof fbState.cesm.insertMessage === 'function') {
+        fbState.cesm.insertMessage('USER', { payload: { html: fbEscapeHtml(phrase) } });
+      }
+    } catch (err) {
+      fbLog('error', 'insertMessage(USER) failed', { message: err.message });
+    }
+    try {
       fbState.cesm.sessionInput(phrase);
+      fbLog('intent', 'sent to the live session: ' + phrase);
     } catch (err) {
       fbLog('error', 'sessionInput failed', { message: err.message });
     }
     return;
   }
   fbCustomerTurn(phrase);
+}
+
+/* The only string this page ever puts into an HTML payload. Everything else
+   reaches the DOM through textContent. */
+function fbEscapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 fbDom.composerSend.addEventListener('click', function () {
@@ -3733,7 +3754,10 @@ function fbReplay() {
      script after a connection failure will try the widget again. */
   fbState.mode = fbResolveMode();
   fbState.toolsRegistered = false;
+  fbState.interactionWired = false;
   fbState.actionMap = {};
+  fbState.lastTapPhrase = '';
+  fbState.lastTapAt = 0;
 
   fbDom.screenA.classList.remove('is-gone');
   fbDom.agent.classList.remove('is-shown');
@@ -3962,6 +3986,8 @@ function fbOnMessengerLoaded() {
   fbRegisterTool('get_genui_catalog', function () { return Promise.resolve(fbGetCatalog()); });
   fbRegisterTool('render_genui_component', function (args) { return Promise.resolve(fbRenderComponent(args)); });
   fbRegisterTool('close_genui_surface', function () { return Promise.resolve(fbCloseSurface()); });
+
+  fbWireWidgetInteraction();
 }
 
 function fbRegisterTool(displayName, handler) {
@@ -4091,7 +4117,115 @@ function fbInsertComponent(name, node) {
   fbScrollThread();
 }
 
-/* ---- 9.11 Isolation audit --------------------------------------------------
+/* ============================================================================
+   9.11 The interaction return path inside the widget.
+
+   A tap on an action inside an injected component has to come back as an
+   ordinary user turn. Two routes are wired, because it is not knowable in
+   advance which of them survives the widget's sanitiser:
+
+   1. registerRichMessageHandler, the documented route, which hands back the
+      clicked element.
+   2. A delegated click listener on the widget's shadow root, matched on the
+      class names the shared builders already emit.
+
+   Both are registered and the second ignores anything the first has just
+   handled, so whichever survives, the tap fires once.
+
+   Neither route relies on data-* attributes surviving. The phrase behind each
+   action is held on the page in fbState.actionMap, keyed by the label the
+   customer reads, and data-send is only consulted if it happens to have
+   survived. Only the visible text has to make it through.
+   ========================================================================= */
+const FB_ACTION_CLASSES = ['gc-action', 'gp-row'];
+
+function fbPhraseFor(node) {
+  if (!node) return '';
+  const attr = node.getAttribute && node.getAttribute('data-send');
+  if (attr) return attr;
+  const label = (node.textContent || '').trim();
+  return fbState.actionMap[label] || '';
+}
+
+function fbActionElementIn(path) {
+  for (let i = 0; i < path.length; i++) {
+    const node = path[i];
+    if (!node || node.nodeType !== 1 || !node.classList) continue;
+    for (let k = 0; k < FB_ACTION_CLASSES.length; k++) {
+      if (node.classList.contains(FB_ACTION_CLASSES[k])) return node;
+    }
+  }
+  return null;
+}
+
+/* Both routes funnel through here, which drops a repeat of the same tap. */
+function fbHandleActionTap(node, via) {
+  const phrase = fbPhraseFor(node);
+  const label = (node && node.textContent || '').trim();
+  if (!phrase) {
+    fbLog('error', 'action tapped but no phrase could be recovered for it', {
+      via: via, label: label, dataSendSurvived: !!(node && node.getAttribute && node.getAttribute('data-send'))
+    });
+    return;
+  }
+  const now = Date.now();
+  if (fbState.lastTapPhrase === phrase && now - fbState.lastTapAt < 700) {
+    fbLog('state', 'duplicate action tap ignored', { via: via, label: label });
+    return;
+  }
+  fbState.lastTapPhrase = phrase;
+  fbState.lastTapAt = now;
+  fbLog('intent', 'customer intent: ' + phrase, {
+    via: via, label: label,
+    recoveredFrom: (node.getAttribute && node.getAttribute('data-send')) ? 'data-send' : 'label lookup'
+  });
+  fbCustomerIntent(phrase);
+}
+
+function fbWireWidgetInteraction() {
+  const cesm = fbState.cesm;
+  if (!cesm || fbState.interactionWired) return;
+
+  const sr = cesm.shadowRoot;
+  if (sr) {
+    sr.addEventListener('click', function (e) {
+      const path = e.composedPath ? e.composedPath() : [e.target];
+      const node = fbActionElementIn(path);
+      if (!node) return;
+      e.preventDefault();
+      fbHandleActionTap(node, 'shadow-root delegate');
+    });
+    fbState.interactionWired = true;
+    fbLog('state', 'interaction: delegated click listener attached to the widget shadow root');
+  } else {
+    fbLog('error', 'interaction: no shadow root, delegated click listener not attached');
+  }
+
+  if (typeof cesm.registerRichMessageHandler === 'function') {
+    try {
+      cesm.registerRichMessageHandler('genui_component', function (message, clickedElement) {
+        const path = clickedElement ? [clickedElement].concat(fbAncestors(clickedElement)) : [];
+        const node = fbActionElementIn(path) || clickedElement;
+        fbHandleActionTap(node, 'registerRichMessageHandler');
+      });
+      fbLog('state', 'interaction: registerRichMessageHandler registered for genui_component');
+    } catch (err) {
+      fbLog('error', 'registerRichMessageHandler failed', { message: err.message });
+    }
+  } else {
+    fbLog('state', 'interaction: registerRichMessageHandler not offered by this widget build — ' +
+      'the delegated listener is the live route');
+  }
+}
+
+function fbAncestors(node) {
+  const out = [];
+  let n = node && node.parentNode;
+  while (n) { out.push(n); n = n.parentNode || n.host; }
+  return out;
+}
+
+/* ---- 9.12 Isolation audit --------------------------------------------------
    The one thing that cannot be settled without a live deployment: whether two
    ces-messenger elements on one page keep their events and tool calls apart.
    Registration is per element, so tool calls should. Events depend on where the
