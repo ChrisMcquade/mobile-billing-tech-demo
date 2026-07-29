@@ -708,13 +708,93 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
    under it) are shared, because they are the thing being compared: the same
    component in a different surface.
    ========================================================================= */
-.fb-placeholder{
-  z-index:10;background:var(--page);
-  align-items:center;justify-content:center;text-align:center;padding:40px 28px;
-  gap:10px;color:var(--ink-600);
+/* ---- 9.1 Frame B's messaging screen ---------------------------------------
+   Deliberately not restyled: Frame B reuses .screen-a, .chat-*, .msg*, .typing
+   and .deeplink-card exactly as Frame A does. The customer starts in the same
+   place in both patterns — that is what makes the comparison fair. Only the
+   instance is separate. */
+
+/* ---- 9.2 The agent surface that replaces it -------------------------------
+   Where Frame A leaves messaging for the native app, Frame B swaps the chat
+   window for a full-screen agent surface in the same place. It covers the whole
+   viewport: no tab bar, no AI dock, no slide-out. */
+.fb-agent{
+  z-index:20;background:var(--page);
+  opacity:0;transform:translateY(14px);pointer-events:none;visibility:hidden;
+  transition:opacity 320ms ease,transform 320ms ease,visibility 0s linear 320ms;
 }
-.fb-placeholder h3{font-size:15px;font-weight:650;color:var(--ink-900)}
-.fb-placeholder p{font-size:13px;max-width:30ch}
+.fb-agent.is-shown{
+  opacity:1;transform:none;pointer-events:auto;visibility:visible;
+  transition:opacity 320ms ease,transform 320ms ease,visibility 0s linear 0s;
+}
+.fb-agent-header{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:calc(var(--statusbar-h) + 8px) 16px 12px;
+  background:linear-gradient(160deg,var(--navy-900) 0%,var(--blue-600) 100%);
+  color:#fff;
+}
+.fb-agent-header .chat-back{color:rgba(255,255,255,.9)}
+.fb-agent-avatar{
+  width:32px;height:32px;flex:0 0 auto;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);
+}
+.fb-agent-avatar svg{fill:#fff}
+.fb-agent-title{font-size:15px;font-weight:650;line-height:1.2}
+.fb-agent-sub{display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.86);margin-top:2px}
+.fb-agent-dot{width:6px;height:6px;border-radius:50%;background:#5BE39A;flex:0 0 auto}
+
+.fb-thread{
+  flex:1 1 auto;overflow-y:auto;scrollbar-width:none;
+  display:flex;flex-direction:column;gap:10px;padding:16px 14px 18px;
+}
+.fb-thread::-webkit-scrollbar{display:none}
+.fb-sys{
+  align-self:center;max-width:88%;text-align:center;
+  font-size:11px;line-height:1.45;color:var(--ink-600);
+  background:var(--blue-050);border-radius:999px;padding:6px 13px;
+  animation:msg-in 260ms ease both;
+}
+
+/* A component message. Full width rather than a 78% bubble — the card is the
+   message, not something inside one. */
+.fb-card{
+  align-self:stretch;background:var(--surface);border:1px solid var(--line);
+  border-radius:16px;border-bottom-left-radius:6px;padding:16px;
+  animation:msg-in 260ms ease both;
+}
+/* No sheet close button to clear in a transcript. */
+.fb-card .genui>*:first-child{padding-right:0}
+/* buildUsageAllowanceCard fills its bar from a requestAnimationFrame closure
+   over the node it built. That closure cannot survive being serialised to HTML
+   and re-parsed inside the widget, so inside Frame B the same fill is driven
+   from CSS instead, and works either way. */
+.fb-card .gu-seg{transform:scaleX(1)}
+.fb-card .gu-seg.within{animation:fb-seg-in 450ms cubic-bezier(.22,1,.36,1) both}
+.fb-card .gu-seg.over{animation:fb-seg-in 250ms cubic-bezier(.22,1,.36,1) 450ms both}
+@keyframes fb-seg-in{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* The composer. In scripted mode it holds the customer's next line as a draft
+   so the presenter controls the pacing, exactly as Frame A's Next button does. */
+.fb-composer{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:10px 12px 16px;background:var(--surface);border-top:1px solid var(--line);
+}
+.fb-composer-field{
+  flex:1 1 auto;min-width:0;padding:10px 14px;border-radius:999px;
+  background:var(--page);border:1px solid var(--line);
+  font-size:14px;line-height:1.3;color:var(--ink-400);text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.fb-composer.is-armed .fb-composer-field{color:var(--ink-900)}
+.fb-composer-send{
+  width:36px;height:36px;flex:0 0 auto;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--line);color:#8A93A0;
+  transition:background 160ms ease,color 160ms ease;
+}
+.fb-composer.is-armed .fb-composer-send{background:var(--blue-600);color:#fff}
+.fb-composer-send svg{fill:currentColor}
 
 /* ============================================================================
    7. Demo controls and debug panel
@@ -1170,10 +1250,45 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
               </span>
             </div>
 
-            <div class="screen fb-placeholder" id="fbPlaceholder">
-              <h3>Pattern B</h3>
-              <p>The inline web-widget journey lands here.</p>
+            <!-- 9.2 The agent surface. Mounted underneath, revealed in place
+                 when the messaging window hands over. -->
+            <div class="screen fb-agent" id="fbAgent">
+              <div class="fb-agent-header">
+                <span class="chat-back" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+                </span>
+                <span class="fb-agent-avatar" aria-hidden="true">
+                  <svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-sparkle"/></svg>
+                </span>
+                <span>
+                  <span class="fb-agent-title">O2 AI assistant</span>
+                  <span class="fb-agent-sub" id="fbAgentStatus">
+                    <span class="fb-agent-dot" aria-hidden="true"></span>Connected
+                  </span>
+                </span>
+              </div>
+              <div class="fb-thread" id="fbThread" aria-live="polite"></div>
+              <div class="fb-composer" id="fbComposer">
+                <span class="fb-composer-field" id="fbComposerText">Message…</span>
+                <button type="button" class="fb-composer-send" id="fbComposerSend" aria-label="Send" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-up"/></svg>
+                </button>
+              </div>
             </div>
+
+            <!-- 9.1 The messaging conversation. Same markup and same styling as
+                 Frame A's screen A — only the instance differs. -->
+            <div class="screen screen-a" id="fbScreenA">
+              <div class="chat-header">
+                <span class="chat-back" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+                </span>
+                <p class="chat-title">O2 · Live chat</p>
+              </div>
+              <div class="chat-body" id="fbChatBody" aria-live="polite"></div>
+            </div>
+
+            <div class="cesm-host" id="fbCesmHost" aria-hidden="true"></div>
           </div>
         </div>
 
@@ -3108,7 +3223,15 @@ function boot() {
 const fbDom = {
   viewport:   document.getElementById('fbViewport'),
   statusBar:  document.getElementById('fbStatusBar'),
-  placeholder:document.getElementById('fbPlaceholder'),
+  screenA:    document.getElementById('fbScreenA'),
+  chatBody:   document.getElementById('fbChatBody'),
+  agent:      document.getElementById('fbAgent'),
+  agentStatus:document.getElementById('fbAgentStatus'),
+  thread:     document.getElementById('fbThread'),
+  composer:   document.getElementById('fbComposer'),
+  composerText: document.getElementById('fbComposerText'),
+  composerSend: document.getElementById('fbComposerSend'),
+  cesmHost:   document.getElementById('fbCesmHost'),
   modeIndicator: document.getElementById('fbModeIndicator'),
   modeText:   document.getElementById('fbModeText'),
   btnReplay:  document.getElementById('fbBtnReplay'),
@@ -3151,24 +3274,447 @@ function fbUpdateModeIndicator() {
   fbDom.modeIndicator.setAttribute('data-live', fbState.connected ? 'true' : 'false');
 }
 
+/* ---- 9.1 The messaging conversation --------------------------------------
+   Frame B's own instance of the same opening exchange. It diverges only at the
+   last card: Frame A offers a way out of messaging, Frame B offers to carry on
+   in it. */
+const FB_CHAT_SCRIPT = [
+  { who: 'bot', text: "Hi, you’re through to O2. What can I help with today?", time: '09:39' },
+  { who: 'customer', text: 'I need to have a look at my bill', time: '09:40' },
+  { who: 'bot', text: 'No problem — our AI assistant can go through it with you right here.', time: '09:40' },
+  { who: 'bot', text: "It’ll pick up what you’ve already told me, so there’s nothing to repeat.", time: '09:40' },
+  { who: 'card', title: 'Continue with the AI assistant', sub: 'Stays in this conversation', button: 'Continue in chat', time: '09:41' }
+];
+
+function fbPlayChatScript() {
+  clear(fbDom.chatBody);
+  let t = 300;
+  for (let i = 0; i < FB_CHAT_SCRIPT.length; i++) {
+    const step = FB_CHAT_SCRIPT[i];
+    if (step.who === 'customer') {
+      fbLater(fbMakeCustomerMessage(step), t);
+      t += 450;
+    } else {
+      fbLater(fbShowChatTyping, t);
+      t += 600;
+      fbLater(fbMakeBotMessage(step), t);
+      t += 450;
+    }
+  }
+}
+
+function fbShowChatTyping() {
+  fbRemoveChatTyping();
+  fbDom.chatBody.appendChild(el('div', {
+    className: 'typing', attrs: { id: 'fbChatTyping', 'aria-hidden': 'true' }
+  }, [el('span'), el('span'), el('span')]));
+  fbDom.chatBody.scrollTop = fbDom.chatBody.scrollHeight;
+}
+function fbRemoveChatTyping() {
+  const t = document.getElementById('fbChatTyping');
+  if (t) t.remove();
+}
+
+function fbMakeCustomerMessage(step) {
+  return function () {
+    fbDom.chatBody.appendChild(el('div', { className: 'msg from-customer' }, [
+      el('p', { className: 'msg-bubble', text: step.text }),
+      el('p', { className: 'msg-time', text: step.time })
+    ]));
+    fbDom.chatBody.scrollTop = fbDom.chatBody.scrollHeight;
+  };
+}
+
+function fbMakeBotMessage(step) {
+  return function () {
+    fbRemoveChatTyping();
+    if (step.who === 'card') {
+      fbDom.chatBody.appendChild(el('div', { className: 'deeplink-card' }, [
+        el('h4', { text: step.title }),
+        el('p', { text: step.sub }),
+        el('button', {
+          className: 'btn-primary',
+          text: step.button,
+          attrs: { type: 'button', id: 'fbHandoverBtn' },
+          on: { click: fbOnHandover }
+        }),
+        el('p', { className: 'msg-time', text: step.time, style: { 'margin-top': '8px' } })
+      ]));
+    } else {
+      fbDom.chatBody.appendChild(el('div', { className: 'msg from-bot' }, [
+        el('p', { className: 'msg-bubble', text: step.text }),
+        el('p', { className: 'msg-time', text: step.time })
+      ]));
+    }
+    fbDom.chatBody.scrollTop = fbDom.chatBody.scrollHeight;
+  };
+}
+
+/* ---- 9.2 The handover ------------------------------------------------------
+   The messaging window is replaced where it stands. Nothing navigates, no app
+   opens: the same rectangle becomes the agent. */
+function fbGoToAgent() {
+  if (fbState.screen === 'agent') return;
+  fbState.screen = 'agent';
+  fbDom.screenA.classList.add('is-gone');
+  fbDom.agent.classList.add('is-shown');
+  fbDom.statusBar.classList.add('on-dark');
+  fbLog('state', 'messaging window replaced by the agent surface');
+}
+
+function fbOnHandover() {
+  const ctx = fbBuildEntryContext();
+  fbLog('state', 'handover pressed', ctx);
+  fbGoToAgent();
+  fbStartAgent(ctx);
+}
+
+/* Frame B's own entry context. Same shape as Frame A's, but it names the
+   channel and surface it actually arrives on. */
+function fbBuildEntryContext(extra) {
+  const ctx = {
+    entry_point: 'messaging_inline_handover',
+    channel: 'web_chat',
+    nlu_intent: 'Billing',
+    customer_utterance: 'I need to have a look at my bill',
+    surface: 'web_chat_inline',
+    bill_period: FIXTURE.bill.period,
+    demo: true
+  };
+  if (extra) { for (const k in extra) ctx[k] = extra[k]; }
+  return ctx;
+}
+
+function fbStartAgent(ctx) {
+  if (fbState.mode === 'live' && CONFIG.deploymentId) {
+    fbStartLiveSession(ctx);
+  } else {
+    if (fbState.mode === 'live' && !CONFIG.deploymentId) {
+      fbLog('error', 'CONFIG.mode is "live" but deploymentId is empty — running the scripted sequence instead');
+    }
+    fbStartScript();
+  }
+  fbUpdateModeIndicator();
+}
+
+/* ---- 9.3 The transcript ----------------------------------------------------
+   Three kinds of turn go into the thread: an agent bubble, a customer bubble
+   and a component. The component is a message in its own right, not something
+   inside a bubble. */
+function fbAppendAgentText(text) {
+  const node = el('div', { className: 'msg from-bot' }, [
+    el('p', { className: 'msg-bubble', text: text })
+  ]);
+  fbDom.thread.appendChild(node);
+  fbScrollThread();
+  return node;
+}
+
+function fbAppendCustomerText(text) {
+  const node = el('div', { className: 'msg from-customer' }, [
+    el('p', { className: 'msg-bubble', text: text })
+  ]);
+  fbDom.thread.appendChild(node);
+  fbScrollThread();
+  return node;
+}
+
+function fbAppendSystem(text) {
+  fbDom.thread.appendChild(el('p', { className: 'fb-sys', text: text }));
+  fbScrollThread();
+}
+
+function fbShowTyping() {
+  fbHideTyping();
+  fbDom.thread.appendChild(el('div', {
+    className: 'typing', attrs: { id: 'fbTyping', 'aria-hidden': 'true' }
+  }, [el('span'), el('span'), el('span')]));
+  fbScrollThread();
+}
+function fbHideTyping() {
+  const t = document.getElementById('fbTyping');
+  if (t) t.remove();
+}
+
+function fbScrollThread() {
+  fbDom.thread.scrollTop = fbDom.thread.scrollHeight;
+}
+
+/* The shared builders stamp id="sheetHeading" on their title element so Frame
+   A's sheet can move focus to it. In a transcript there is nothing to move
+   focus to, and a second copy of the id on the page would be invalid, so Frame
+   B strips it from every component it renders. */
+function fbAdoptComponent(node) {
+  const h = node.querySelector('#sheetHeading');
+  if (h) { h.removeAttribute('id'); h.removeAttribute('tabindex'); }
+  return node;
+}
+
+/* Frame B's own renderer contract. Same validation and the same build
+   functions as Frame A — only the destination differs: the transcript rather
+   than the slide-out. */
+function fbRenderComponent(args) {
+  args = args || {};
+  fbLog('tool', 'render_genui_component called', args);
+
+  const name = args.component_name;
+  let payload = args.component_json;
+
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch (err) {
+      const result = { status: 'INVALID', errors: ['field component_json: could not be parsed as JSON — ' + err.message] };
+      fbLog('error', 'render rejected: component_json is not valid JSON', result);
+      return result;
+    }
+  }
+
+  const entry = RENDERERS[name];
+  if (!entry) {
+    const result = {
+      status: 'INVALID',
+      errors: ['unknown component: ' + String(name)],
+      available: componentNames()
+    };
+    fbLog('error', 'render rejected: unknown component', result);
+    return result;
+  }
+
+  const descriptor = CATALOGUE.components.filter(function (c) { return c.name === name; })[0];
+  const errors = [];
+  validate(payload, descriptor.schema, '<root>', errors);
+  if (!errors.length && entry.check) Array.prototype.push.apply(errors, entry.check(payload));
+
+  if (errors.length) {
+    const result = { status: 'INVALID', errors: errors };
+    fbLog('error', 'render rejected: ' + name + ' failed validation', result);
+    return result;
+  }
+
+  let node;
+  try {
+    node = fbAdoptComponent(entry.build(payload));
+  } catch (err) {
+    const result = { status: 'INVALID', errors: ['field <root>: the payload validated but could not be rendered — ' + err.message] };
+    fbLog('error', 'render failed while building ' + name, result);
+    return result;
+  }
+
+  fbInsertComponent(name, node);
+  fbLog('render', 'rendered ' + name + ' inline', { component: name });
+  /* Fire and forget, exactly as Frame A does. A tap comes back later as an
+     ordinary user turn. */
+  return { status: 'RENDERED', component: name };
+}
+
+/* In scripted mode the built node goes straight into the thread. */
+function fbInsertComponent(name, node) {
+  fbDom.thread.appendChild(el('div', {
+    className: 'fb-card', attrs: { 'data-component': name }
+  }, [node]));
+  fbScrollThread();
+}
+
+/* Frame B's surface has no slide-out, so there is nothing for the agent to
+   close. The tool stays registered so the agent needs no change. */
+function fbCloseSurface() {
+  fbLog('tool', 'close_genui_surface called — no-op, components live in the transcript');
+  return { status: 'CLOSED' };
+}
+
+/* The catalogue is identical but for the surface it declares, which is the one
+   thing the agent can usefully know about where its output lands. */
+function fbGetCatalog() {
+  const catalogue = {
+    version: CATALOGUE.version,
+    surface: 'web_chat_inline',
+    components: CATALOGUE.components
+  };
+  fbLog('tool', 'get_genui_catalog called', { components: componentNames(), surface: catalogue.surface });
+  return catalogue;
+}
+
+/* ---- 9.4 Scripted mode -----------------------------------------------------
+   The same conversation as Frame A, written for text rather than speech: the
+   agent can use numerals and be terser, because nothing is being read aloud. */
+const FB_SCRIPT = [
+  { who: 'agent', text: 'Hi — I can help with your bill. Which one do you need: your most recent bill, or an earlier one?' },
+  { who: 'customer', text: "Last month’s" },
+  { who: 'agent',
+    text: "Here’s your June bill. It’s £48.50, due on the 18th, and it hasn’t been taken yet — £9.50 more than May, and that whole difference is out-of-plan charges.",
+    render: 'bill_summary_card' },
+  { who: 'customer', text: "I don’t recognise that charge for going past my data allowance" },
+  { who: 'agent',
+    text: "That’s extra data. Your plan includes 30GB and you used 34.75GB — you went past it on Friday 19 June. Anything over is £2.00 a gigabyte, so £9.50.",
+    render: 'usage_allowance_card' }
+];
+
+/* Reading is faster than listening, so the pause between turns is shorter than
+   Frame A's spoken equivalent. That difference is part of the comparison. */
+function fbReadDuration(text) {
+  const words = text.split(/\s+/).length;
+  return Math.max(900, Math.round((words / 22) * 900));
+}
+
+function fbStartScript() {
+  fbState.scriptLive = true;
+  fbState.scriptIndex = -1;
+  fbState.finished = false;
+  fbDom.endMarker.classList.remove('is-visible');
+  fbDom.btnReplay.classList.remove('is-emphasised');
+  clear(fbDom.thread);
+  fbAppendSystem('Connected to the O2 AI assistant. It already has what you told us.');
+  fbLog('state', 'scripted sequence started');
+  fbLater(fbScriptNext, 700);
+}
+
+function fbScriptNext() {
+  fbState.scriptIndex++;
+  const step = FB_SCRIPT[fbState.scriptIndex];
+  if (!step) { fbEndDemo(); return; }
+  if (step.who === 'agent') fbPlayAgentTurn(step);
+  else fbLog('error', 'script desynchronised at step ' + fbState.scriptIndex);
+}
+
+function fbPlayAgentTurn(step) {
+  fbState.awaitingCustomer = false;
+  fbArmComposer(null);
+  fbShowTyping();
+
+  fbLater(function () {
+    fbHideTyping();
+    fbAppendAgentText(step.text);
+
+    if (step.render) {
+      fbLater(function () {
+        fbRenderComponent({ component_name: step.render, component_json: PAYLOADS[step.render]() });
+      }, 380);
+    }
+
+    fbLater(function () {
+      const upcoming = FB_SCRIPT[fbState.scriptIndex + 1];
+      if (!upcoming) { fbEndDemo(); return; }
+      fbState.scriptIndex++;
+      fbState.awaitingCustomer = true;
+      fbArmComposer(upcoming.text);
+    }, step.render ? 900 : 400);
+  }, fbReadDuration(step.text));
+}
+
+/* Loads the customer's next line into the composer as a draft. Passing null
+   disarms it. */
+function fbArmComposer(text) {
+  if (text) {
+    fbDom.composerText.textContent = text;
+    fbDom.composer.classList.add('is-armed');
+    fbDom.composerSend.disabled = false;
+  } else {
+    fbDom.composerText.textContent = 'Message…';
+    fbDom.composer.classList.remove('is-armed');
+    fbDom.composerSend.disabled = true;
+  }
+}
+
+/* Sends the drafted customer turn. `phrase` overrides the scripted line when
+   the customer taps an action inside a rendered component. */
+function fbCustomerTurn(phrase) {
+  if (!fbState.scriptLive) return;
+  const step = FB_SCRIPT[fbState.scriptIndex];
+  if (!fbState.awaitingCustomer || !step || step.who !== 'customer') {
+    if (phrase) fbLog('state', 'off-script tap ignored in scripted mode: ' + phrase);
+    return;
+  }
+  fbState.awaitingCustomer = false;
+  fbArmComposer(null);
+  fbAppendCustomerText(phrase || step.text);
+  fbLater(fbScriptNext, 600);
+}
+
+function fbEndDemo() {
+  fbState.finished = true;
+  fbState.scriptLive = false;
+  fbArmComposer(null);
+  fbDom.endMarker.classList.add('is-visible');
+  fbDom.btnReplay.classList.add('is-emphasised');
+  fbLog('state', 'scripted sequence complete');
+}
+
+/* ---- 9.5 Interaction return path -------------------------------------------
+   The shared build functions wire their action buttons to Frame A's
+   customerIntent(), which drives Frame A's script and Frame A's session. A
+   capture-phase listener on Frame B's thread intercepts the click before it
+   reaches that handler and routes it into Frame B instead. Frame A's builders
+   are left exactly as they are. */
+fbDom.thread.addEventListener('click', function (e) {
+  const target = e.target && e.target.closest ? e.target.closest('[data-send]') : null;
+  if (!target || !fbDom.thread.contains(target)) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const phrase = target.getAttribute('data-send');
+  const id = target.getAttribute('data-action-id') || target.getAttribute('data-period-id') || 'action';
+  fbLog('intent', 'customer intent: ' + phrase, { source: 'component action: ' + id });
+  fbCustomerIntent(phrase);
+}, true);
+
+function fbCustomerIntent(phrase) {
+  if (fbState.mode === 'live' && fbState.cesm && typeof fbState.cesm.sessionInput === 'function') {
+    try {
+      fbAppendCustomerText(phrase);
+      fbState.cesm.sessionInput(phrase);
+    } catch (err) {
+      fbLog('error', 'sessionInput failed', { message: err.message });
+    }
+    return;
+  }
+  fbCustomerTurn(phrase);
+}
+
+fbDom.composerSend.addEventListener('click', function () {
+  if (fbState.mode === 'live' && fbState.cesm) {
+    const phrase = fbDom.composerText.textContent;
+    fbArmComposer(null);
+    fbCustomerIntent(phrase);
+    return;
+  }
+  fbCustomerTurn(null);
+});
+
+/* ---- 9.6 Reset ------------------------------------------------------------- */
 function fbReplay() {
   fbClearTimers();
+  fbTeardownLiveSession();
+
   fbState.screen = 'messaging';
   fbState.scriptIndex = -1;
   fbState.awaitingCustomer = false;
   fbState.finished = false;
   fbState.scriptLive = false;
+
+  fbDom.screenA.classList.remove('is-gone');
+  fbDom.agent.classList.remove('is-shown');
+  fbDom.statusBar.classList.remove('on-dark');
   fbDom.endMarker.classList.remove('is-visible');
   fbDom.btnReplay.classList.remove('is-emphasised');
+  clear(fbDom.thread);
+  fbArmComposer(null);
+  fbPlayChatScript();
   fbUpdateModeIndicator();
   fbLog('state', 'demo reset');
 }
 
+/* Stage 3 fills these in. Declared here so the scripted path can call them
+   unconditionally. */
+function fbStartLiveSession(ctx) { fbState.entryContext = ctx; fbStartScript(); }
+function fbTeardownLiveSession() {}
+
 fbDom.btnReplay.addEventListener('click', fbReplay);
 
 function fbBoot() {
+  fbArmComposer(null);
+  fbPlayChatScript();
   fbUpdateModeIndicator();
-  fbLog('state', 'frame ready', { mode: fbState.mode, stage: 'layout only' });
+  fbLog('state', 'frame ready', { mode: fbState.mode, surface: 'web_chat_inline' });
 }
 
 /* Exposed for console-driven checks during a build or a stakeholder session. */
@@ -3187,6 +3733,9 @@ window.__demo = {
 /* Frame B's equivalent, kept separate so a console poke at one frame can never
    reach into the other. */
 window.__demoB = {
+  renderComponent: fbRenderComponent,
+  closeSurface: fbCloseSurface,
+  getCatalog: fbGetCatalog,
   state: fbState,
   replay: fbReplay
 };
