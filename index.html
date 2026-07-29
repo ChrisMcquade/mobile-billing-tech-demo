@@ -1048,7 +1048,8 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 <section class="demo-section" aria-labelledby="demo-h">
   <div class="wrap">
     <h2 class="section-title" id="demo-h">The demo — two ways in, side by side</h2>
-    <p class="demo-instruction">The same agent, the same components, two different journeys. <strong>Pattern A</strong> hands the customer from chat to voice and back again. <strong>Pattern B</strong> keeps them in text throughout. Start each frame by tapping <strong>Open my bills</strong> in its messaging conversation. Customer turns wait for you — tap <strong>Next</strong> to advance.</p>
+    <p class="demo-instruction">One agent, one set of components, two journeys. Both customers start in the same messaging conversation and ask the same question. <strong>Pattern A</strong> hands them from chat to voice and back again; <strong>Pattern B</strong> keeps them in text throughout. Start the left frame with <strong>Open my bills</strong> and the right with <strong>Continue in chat</strong>. Customer turns wait for you in both — tap <strong>Next</strong> on the left, the send arrow on the right.</p>
+    <p class="demo-instruction">This is a different question from the two entry points above: those are about <em>when</em> we place a way in, these are about <em>what happens</em> once the customer takes one.</p>
 
     <div class="demo-stage">
       <!-- ==================================================================
@@ -1346,12 +1347,14 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
     <h2 class="section-title" id="notes-h">Notes and limitations</h2>
     <ul class="notes">
       <li><strong>Mock data only.</strong> Figures are illustrative and are not O2 pricing. The account number, the device and the usage are invented for the demo.</li>
+      <li><strong>One agent serves both frames.</strong> Same deployment, same three tools, no agent-side difference between the two patterns. Where a component is drawn, and whether the conversation is spoken or typed, are decisions this page makes — not the agent’s.</li>
+      <li><strong>Two live frames are two sessions.</strong> Running both against a real deployment consumes two lots of quota. Either frame can be run from its script instead.</li>
       <li><strong>One demo account, one scripted path.</strong> The agent will answer off-script but has no data beyond the fixture, so it will generalise rather than look anything up.</li>
       <li><strong>Phase 2 entry points are shown but inert.</strong> They are marked on the bills screen to show placement, not to be used.</li>
       <li><strong>No payments, no card or bank details, no document sending.</strong> Those are out of scope for the demo by design, not pending work.</li>
       <li><strong>Containment figures are indicative.</strong> They describe the shape of the opportunity and are not a forecast.</li>
       <li><strong>The component catalogue is fixed by this page.</strong> The agent cannot invent a component or a field; anything outside the schema is rejected and returned to the agent as a structured error.</li>
-      <li><strong>Voice quality depends on the device and the room.</strong> In a noisy stakeholder session, use the scripted mode.</li>
+      <li><strong>Voice quality depends on the device and the room.</strong> In a noisy stakeholder session, use the scripted mode. It is also the reason pattern B is worth comparing: it never needs the room to be quiet.</li>
     </ul>
   </div>
 </section>
