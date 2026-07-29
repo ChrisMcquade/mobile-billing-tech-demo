@@ -197,16 +197,55 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 }
 .demo-instruction{font-size:15px;color:var(--site-ink-2);max-width:70ch;margin-top:16px}
 .demo-instruction strong{color:var(--site-ink);font-weight:600}
-/* A pool of light under the phone so a dark bezel does not sink into a dark
-   page. */
-.demo-stage{position:relative;display:flex;justify-content:center;margin-top:48px}
+/* A pool of light under the phones so a dark bezel does not sink into a dark
+   page. Sized to cover both frames, and to collapse with them when they stack. */
+.demo-stage{
+  position:relative;display:flex;justify-content:center;align-items:flex-start;
+  gap:40px;flex-wrap:wrap;margin-top:48px;
+}
 .demo-stage::before{
   content:"";position:absolute;left:50%;top:8%;translate:-50% 0;
-  width:min(760px,92%);height:84%;border-radius:50%;pointer-events:none;
-  background:radial-gradient(closest-side, rgba(0,80,255,.26), transparent 74%);
+  width:min(1000px,96%);height:84%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side, rgba(0,80,255,.24), transparent 74%);
   filter:blur(18px);
 }
 .demo-stage>*{position:relative}
+
+/* ---- 2.5.1 The two compared frames ----------------------------------------
+   One column per pattern: a caption card naming it, the phone, then that
+   frame's own controls. The columns are independent — nothing is shared
+   between them but the page they sit on. */
+.frame-col{
+  display:flex;flex-direction:column;align-items:center;gap:20px;
+  width:calc(var(--phone-w) + 24px);
+}
+.frame-cap{
+  width:100%;padding:18px 20px;border-radius:14px;
+  background:var(--site-surface);border:1px solid var(--site-line);
+  box-shadow:var(--shadow-card);
+}
+.frame-cap-tag{
+  font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--site-accent);
+}
+.frame-col[data-frame="b"] .frame-cap-tag{color:var(--site-violet)}
+.frame-cap-title{font-size:16px;line-height:1.3;font-weight:650;letter-spacing:-.01em;margin-top:8px}
+.frame-cap-body{font-size:13px;color:var(--site-ink-2);margin-top:8px}
+.frame-cap-flow{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px;
+  font-size:11px;font-weight:650;color:var(--site-ink-3);
+}
+.frame-cap-flow span{
+  padding:3px 9px;border-radius:999px;
+  background:var(--site-accent-soft);color:var(--site-accent);
+}
+.frame-col[data-frame="b"] .frame-cap-flow span{
+  background:var(--site-violet-soft);color:var(--site-violet);
+}
+.frame-cap-flow i{font-style:normal;color:var(--site-ink-3)}
+.frame-controls{
+  display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;width:100%;
+}
 
 /* ============================================================================
    2.6 Notes and limitations
@@ -663,6 +702,21 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 }
 
 /* ============================================================================
+   9. Frame B — the web-widget comparison.
+   Everything here is prefixed fb- and is used only by the second phone. Frame A
+   shares none of it. The generative UI cards themselves (.genui and everything
+   under it) are shared, because they are the thing being compared: the same
+   component in a different surface.
+   ========================================================================= */
+.fb-placeholder{
+  z-index:10;background:var(--page);
+  align-items:center;justify-content:center;text-align:center;padding:40px 28px;
+  gap:10px;color:var(--ink-600);
+}
+.fb-placeholder h3{font-size:15px;font-weight:650;color:var(--ink-900)}
+.fb-placeholder p{font-size:13px;max-width:30ch}
+
+/* ============================================================================
    7. Demo controls and debug panel
    ========================================================================= */
 .controls{max-width:760px;margin:28px auto 0;display:flex;flex-direction:column;gap:14px}
@@ -697,6 +751,8 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
   padding:10px 12px;border-bottom:1px solid var(--site-line);background:var(--site-surface-2);
 }
 .debug-head h3{font-size:13px;font-weight:700;color:var(--site-ink)}
+.debug-legend{font-size:11px;font-weight:500;color:var(--site-ink-3);margin-left:10px}
+.debug-legend code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .debug-log{
   max-height:300px;overflow:auto;margin:0;padding:10px 12px;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;
@@ -728,6 +784,12 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
   .cards-3,.entries{grid-template-columns:1fr}
   .section{padding:64px 0}
   .hero{padding:64px 0 56px}
+}
+/* Two phones need roughly 870px of content width. Below that they stack, and
+   the pool of light collapses to sit behind one column rather than two. */
+@media (max-width:920px){
+  .demo-stage{gap:56px}
+  .demo-stage::before{width:min(620px,92%)}
 }
 @media (max-width:520px){
   :root{--phone-w:340px;--phone-h:720px}
@@ -895,10 +957,22 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
      ======================================================================= -->
 <section class="demo-section" aria-labelledby="demo-h">
   <div class="wrap">
-    <h2 class="section-title" id="demo-h">The demo</h2>
-    <p class="demo-instruction">Start in the messaging conversation and tap <strong>Open my bills</strong>. The agent takes over from there. Customer turns wait for you — tap <strong>Next</strong> in the caption strip to advance.</p>
+    <h2 class="section-title" id="demo-h">The demo — two ways in, side by side</h2>
+    <p class="demo-instruction">The same agent, the same components, two different journeys. <strong>Pattern A</strong> hands the customer from chat to voice and back again. <strong>Pattern B</strong> keeps them in text throughout. Start each frame by tapping <strong>Open my bills</strong> in its messaging conversation. Customer turns wait for you — tap <strong>Next</strong> to advance.</p>
 
     <div class="demo-stage">
+      <!-- ==================================================================
+           Frame A — the existing demo. Messaging deep link → native bills
+           screen → voice agent → components in a slide-out sheet.
+           =============================================================== -->
+      <div class="frame-col" data-frame="a">
+        <div class="frame-cap">
+          <p class="frame-cap-tag">Pattern A · in the app</p>
+          <h3 class="frame-cap-title">Voice on the bills screen, components in a slide-out</h3>
+          <p class="frame-cap-body">The deep link leaves messaging and opens the native bills screen. A voice agent picks up what was already said and draws components into a sheet over the app.</p>
+          <p class="frame-cap-flow"><span>Chat</span><i>→</i><span>App</span><i>→</i><span>Voice</span><i>→</i><span>Chat</span></p>
+        </div>
+
       <!-- ==================================================================
            3. The phone frame. Chrome only — nothing in the demo depends on it.
            =============================================================== -->
@@ -1053,28 +1127,81 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
           <div class="cesm-host" id="cesmHost" aria-hidden="true"></div>
         </div>
       </div>
+
+        <!-- Frame A's own controls. Same elements and same handlers as before;
+             they have moved under the frame they drive, nothing more. -->
+        <div class="frame-controls">
+          <span class="mode-indicator" id="modeIndicator" data-live="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span id="modeText">Scripted</span>
+          </span>
+          <button type="button" class="ctl-btn" id="btnReplay">Replay A</button>
+          <span class="end-marker" id="endMarker">
+            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>
+            End of demo
+          </span>
+        </div>
+      </div>
+
+      <!-- ==================================================================
+           9. Frame B — the web-widget comparison. Messaging deep link replaces
+           the chat window in place with a full-screen GECX widget; components
+           are injected inline into the transcript rather than into a sheet.
+           Nothing below is shared with Frame A.
+           =============================================================== -->
+      <div class="frame-col" data-frame="b">
+        <div class="frame-cap">
+          <p class="frame-cap-tag">Pattern B · in the chat</p>
+          <h3 class="frame-cap-title">The chat window becomes the agent, components inline</h3>
+          <p class="frame-cap-body">The messaging window is replaced in place by a full-screen web widget. The conversation stays in text and the same components are injected into the transcript itself.</p>
+          <p class="frame-cap-flow"><span>Chat</span><i>→</i><span>Chat</span></p>
+        </div>
+
+        <div class="phone">
+          <div class="phone-viewport" id="fbViewport">
+            <div class="notch" aria-hidden="true"></div>
+
+            <div class="statusbar" id="fbStatusBar" aria-hidden="true">
+              <span class="statusbar-time">09:41</span>
+              <span class="statusbar-glyphs">
+                <svg width="17" height="12" viewBox="0 0 17 12"><use href="#i-signal"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12"><use href="#i-wifi"/></svg>
+                <svg width="27" height="12" viewBox="0 0 27 12"><use href="#i-battery"/></svg>
+              </span>
+            </div>
+
+            <div class="screen fb-placeholder" id="fbPlaceholder">
+              <h3>Pattern B</h3>
+              <p>The inline web-widget journey lands here.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-controls">
+          <span class="mode-indicator" id="fbModeIndicator" data-live="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span id="fbModeText">Scripted</span>
+          </span>
+          <button type="button" class="ctl-btn" id="fbBtnReplay">Replay B</button>
+          <span class="end-marker" id="fbEndMarker">
+            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>
+            End of demo
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- ==================================================================
-         7. Demo controls, outside the phone so the screen stays clean.
+         7. Demo controls shared by both frames.
          =============================================================== -->
     <div class="controls">
       <div class="controls-row">
-        <span class="mode-indicator" id="modeIndicator" data-live="false">
-          <span class="mode-dot" aria-hidden="true"></span>
-          <span id="modeText">Scripted</span>
-        </span>
-        <button type="button" class="ctl-btn" id="btnReplay">Replay demo</button>
         <button type="button" class="ctl-btn" id="btnDebug" aria-expanded="false" aria-controls="debugPanel">Open debug</button>
-        <span class="end-marker" id="endMarker">
-          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>
-          End of demo
-        </span>
       </div>
       <p class="small-print">Demo build. Illustrative data — not O2 pricing.</p>
       <div class="debug" id="debugPanel">
         <div class="debug-head">
-          <h3>Debug log</h3>
+          <h3>Debug log <span class="debug-legend">Frame B entries are prefixed <code>[Frame B]</code>; unprefixed entries are Frame A</span></h3>
           <button type="button" class="ctl-btn" id="btnCopyLog">Copy log</button>
         </div>
         <div class="debug-log" id="debugLog"></div>
@@ -2965,6 +3092,85 @@ function boot() {
   }
 }
 
+/* ============================================================================
+   9. FRAME B — the web-widget comparison.
+
+   Everything from here down belongs to the second phone and nothing above it
+   reads any of it. Frame B keeps its own state object (fbState), its own
+   element handles (fbDom) and its own logger (fbLog); it deliberately does not
+   touch `state`, `dom`, `Sheet` or any of Frame A's functions.
+
+   What it does share, on purpose, is the side-effect-free half of the file:
+   CATALOGUE, validate(), RENDERERS and the component build() functions, plus
+   the .genui CSS. That sharing is the point of the comparison — the same
+   component rendered into a different surface.
+   ========================================================================= */
+const fbDom = {
+  viewport:   document.getElementById('fbViewport'),
+  statusBar:  document.getElementById('fbStatusBar'),
+  placeholder:document.getElementById('fbPlaceholder'),
+  modeIndicator: document.getElementById('fbModeIndicator'),
+  modeText:   document.getElementById('fbModeText'),
+  btnReplay:  document.getElementById('fbBtnReplay'),
+  endMarker:  document.getElementById('fbEndMarker')
+};
+
+const fbState = {
+  mode: CONFIG.mode,
+  screen: 'messaging',
+  scriptIndex: -1,
+  awaitingCustomer: false,
+  finished: false,
+  connected: false,
+  scriptLive: false,
+  timers: [],
+  cesm: null,
+  entryContext: null
+};
+
+/* Frame B writes into the same panel and the same window.__demoLog array as
+   Frame A, prefixed so the two are never confused. Frame A's own entries are
+   left exactly as they were. */
+function fbLog(kind, label, detail) {
+  return log(kind, '[Frame B] ' + label, detail);
+}
+
+function fbLater(fn, ms) {
+  const id = window.setTimeout(fn, ms);
+  fbState.timers.push(id);
+  return id;
+}
+function fbClearTimers() {
+  for (let i = 0; i < fbState.timers.length; i++) window.clearTimeout(fbState.timers[i]);
+  fbState.timers.length = 0;
+}
+
+function fbUpdateModeIndicator() {
+  const live = fbState.mode === 'live' && !!CONFIG.deploymentId;
+  fbDom.modeText.textContent = live ? 'Live agent' : 'Scripted';
+  fbDom.modeIndicator.setAttribute('data-live', fbState.connected ? 'true' : 'false');
+}
+
+function fbReplay() {
+  fbClearTimers();
+  fbState.screen = 'messaging';
+  fbState.scriptIndex = -1;
+  fbState.awaitingCustomer = false;
+  fbState.finished = false;
+  fbState.scriptLive = false;
+  fbDom.endMarker.classList.remove('is-visible');
+  fbDom.btnReplay.classList.remove('is-emphasised');
+  fbUpdateModeIndicator();
+  fbLog('state', 'demo reset');
+}
+
+fbDom.btnReplay.addEventListener('click', fbReplay);
+
+function fbBoot() {
+  fbUpdateModeIndicator();
+  fbLog('state', 'frame ready', { mode: fbState.mode, stage: 'layout only' });
+}
+
 /* Exposed for console-driven checks during a build or a stakeholder session. */
 window.__demo = {
   renderComponent: renderComponent,
@@ -2978,7 +3184,15 @@ window.__demo = {
   replay: replay
 };
 
+/* Frame B's equivalent, kept separate so a console poke at one frame can never
+   reach into the other. */
+window.__demoB = {
+  state: fbState,
+  replay: fbReplay
+};
+
 boot();
+fbBoot();
 </script>
 </body>
 </html>
