@@ -799,12 +799,28 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 /* ---- 9.3 The live widget host ---------------------------------------------
    Frame A hides its widget off-screen because there the widget is only a voice
    transport. Here the widget is the surface the customer is looking at, so it
-   fills what is left of the screen and the scripted thread steps aside. */
+   fills what is left of the screen and the scripted thread steps aside.
+
+   The widget runs inside a same-origin iframe, not in this document. That is
+   load-bearing, not cosmetic — three behaviours of the widget, confirmed in
+   its source, make two instances in one document interfere:
+
+   - it dispatches every ces-* event on window, where Frame A listens;
+   - it saves its session id and transcript to sessionStorage under one fixed
+     key ('bidi-widget-session') and loads them on mount, so a second widget
+     silently adopts the first one's session;
+   - its container is position:fixed against the viewport, which is why it
+     drew clipped in the phone's corner.
+
+   An iframe gives Frame B its own window for events, its own storage (shimmed
+   in-memory before the widget script runs), and its own viewport — 390px wide,
+   which lands in the widget's own max-width:768px styles and lays it out
+   full-screen, exactly as it would on a real phone. */
 .fb-widget-host{display:none;flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
 .fb-agent.is-live .fb-thread,
 .fb-agent.is-live .fb-composer{display:none}
 .fb-agent.is-live .fb-widget-host{display:block}
-.fb-widget-host ces-messenger{display:block;width:100%;height:100%}
+.fb-widget-host iframe{display:block;width:100%;height:100%;border:0;background:var(--page)}
 
 /* ============================================================================
    7. Demo controls and debug panel
@@ -1395,7 +1411,11 @@ const CONFIG = {
    two lots of quota.
    ------------------------------------------------------------------------- */
 const CONFIG_B = {
-  mode: "inherit"                 // "inherit" | "simulated" | "live"
+  mode: "inherit",                // "inherit" | "simulated" | "live"
+  /* The widget build Frame B loads inside its iframe. Empty = the same
+     gstatic URL Frame A uses. Point it at a self-hosted copy to pin a
+     version. */
+  messengerSrc: ""
 };
 
 /* Resource names copied out of the console routinely arrive with a leading or
@@ -3278,14 +3298,14 @@ const fbState = {
   scriptLive: false,
   timers: [],
   cesm: null,
+  /* The iframe the live widget runs in. Its own window keeps the widget's
+     events out of Frame A's listeners; its shimmed storage keeps the session
+     out of Frame A's widget. */
+  iframe: null,
   entryContext: null,
-  eventsWired: false,
   toolsRegistered: false,
-  /* Counts that answer the one question a live deployment is needed to settle:
-     do two widgets on one page keep their events apart. */
-  hostEvents: 0,
-  windowEvents: 0,
-  anyWindowEvents: 0,
+  iframeEvents: 0,
+  sendFailures: 0,
   componentCss: '',
   /* label → phrase, so the interaction return path does not depend on any
      attribute surviving the widget's sanitiser. */
@@ -3703,12 +3723,14 @@ fbDom.thread.addEventListener('click', function (e) {
 
 function fbCustomerIntent(phrase) {
   if (fbState.mode === 'live' && fbState.cesm && typeof fbState.cesm.sessionInput === 'function') {
-    /* The documented sequence: show the turn in the transcript, then send it.
-       sessionInput on its own does not echo the customer, so without the
-       insertMessage the tap would look like it did nothing. */
+    /* Show the turn in the transcript, then send it. sessionInput on its own
+       does not echo the customer, so without the insertMessage the tap would
+       look like it did nothing. Sent as text, not HTML — the widget renders
+       message.text through its own text path, so no markup and no sanitiser
+       are involved at all. */
     try {
       if (typeof fbState.cesm.insertMessage === 'function') {
-        fbState.cesm.insertMessage('USER', { payload: { html: fbEscapeHtml(phrase) } });
+        fbState.cesm.insertMessage('USER', { text: phrase });
       }
     } catch (err) {
       fbLog('error', 'insertMessage(USER) failed', { message: err.message });
@@ -3722,14 +3744,6 @@ function fbCustomerIntent(phrase) {
     return;
   }
   fbCustomerTurn(phrase);
-}
-
-/* The only string this page ever puts into an HTML payload. Everything else
-   reaches the DOM through textContent. */
-function fbEscapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 fbDom.composerSend.addEventListener('click', function () {
@@ -3758,6 +3772,7 @@ function fbReplay() {
   fbState.mode = fbResolveMode();
   fbState.toolsRegistered = false;
   fbState.interactionWired = false;
+  fbState.iframeEvents = 0;
   fbState.actionMap = {};
   fbState.lastTapPhrase = '';
   fbState.lastTapAt = 0;
@@ -3789,22 +3804,43 @@ function fbReplay() {
    - what get_genui_catalog declares as its surface.
 
    No new agent, no new tools, no agent-side change of any kind.
+
+   Frame B's widget runs inside a same-origin iframe. Established from the
+   widget's source (GoogleCloudPlatform/ces-messenger, BidiWidget.ce.vue) and
+   confirmed against a live session's HAR — two instances in one document
+   interfere three ways, and none of them can be fixed from the page:
+
+   - every ces-* event is window.dispatchEvent'd, so Frame A's window
+     listeners hear Frame B's turns and nothing tells the two apart;
+   - session state — the session id and the whole transcript — is saved to
+     sessionStorage under the fixed key 'bidi-widget-session' and loaded on
+     mount, so whichever widget mounts second silently joins the first one's
+     session. That is why a Frame A reply was spoken in A and written into B;
+   - the widget positions itself fixed against the viewport (top:-60px,
+     right:40px), which is why it drew clipped in the phone's corner.
+
+   The iframe answers all three at once: its own window keeps events in their
+   frame, an in-memory sessionStorage shim (installed before the widget script
+   runs, affecting nothing outside the iframe) keeps sessions separate, and
+   its own 390px viewport lands in the widget's max-width:768px styles, which
+   lay the chat out full-screen exactly as on a real phone.
    ========================================================================= */
 
-/* Frame B's widget is visible, so it needs the opposite of Frame A's CSS:
-   nothing suppressed, just made to fill its container. */
+/* Inside the iframe the widget's own mobile layout does the filling. What is
+   left to CSS: the widget's header (Frame B draws its own, branded one) and
+   the widget's default background. */
 const FB_WIDGET_CSS = [
-  '.close-button { display: none !important; }',
-  '.voice-assistant-container, .chat-container { position: relative !important; width: 100% !important; height: 100% !important; margin: 0 !important; }',
-  'main { margin: 0 !important; padding: 0 !important; height: 100% !important; }'
+  'main header { display: none !important; }',
+  'main { border-radius: 0 !important; }'
 ].join('\n');
 
-/* Every ces-* event Frame A listens for on window. Frame B intercepts each of
-   them on its own host and stops it there. */
+/* Every ces-* event the widget dispatches that Frame B reacts to. They arrive
+   on the iframe's window — Frame A's window never sees them. */
 const FB_EVENTS = [
   'ces-messenger-loaded', 'ces-messenger-connected', 'ces-messenger-disconnected',
   'ces-authentication-error', 'ces-tool-call-received', 'ces-tool-response-sent',
-  'ces-text-received', 'ces-transcript-received', 'ces-user-input-entered'
+  'ces-text-received', 'ces-transcript-received', 'ces-user-input-entered',
+  'ces-end-session'
 ];
 
 function fbResolveMode() {
@@ -3813,19 +3849,92 @@ function fbResolveMode() {
   return CONFIG.mode;
 }
 
-function fbStartLiveSession(ctx) {
-  if (fbState.cesm) return;
-  fbState.entryContext = ctx;
-  fbSetAgentStatus('Connecting…', false);
-  loadMessengerScript(function () { fbCreateWidget(ctx); }, function () {
-    fbLog('error', 'ces-messenger script failed to load — falling back to the script');
-    fbFallBackToScript("Couldn’t load the assistant. Running the scripted conversation instead.");
-  });
+function fbMessengerSrc() {
+  return (CONFIG_B.messengerSrc || '').trim() || MESSENGER_SRC;
 }
 
-function fbCreateWidget(ctx) {
+function fbStartLiveSession(ctx) {
+  if (fbState.iframe) return;
+  fbState.entryContext = ctx;
+  fbSetAgentStatus('Connecting…', false);
+  fbCreateIframe(ctx);
+}
+
+/* The sessionStorage shim, serialised into the iframe before the widget
+   script loads. Backed by a Map that dies with the iframe: the widget reads
+   an empty store, generates a fresh session id, and its saves never reach the
+   real sessionStorage that Frame A's widget uses. localStorage is shimmed the
+   same way so no widget state of any kind is shared. */
+const FB_STORAGE_SHIM =
+  '(function () {' +
+  '  function makeStore() {' +
+  '    var m = Object.create(null);' +
+  '    return {' +
+  '      getItem: function (k) { return k in m ? m[k] : null; },' +
+  '      setItem: function (k, v) { m[k] = String(v); },' +
+  '      removeItem: function (k) { delete m[k]; },' +
+  '      clear: function () { m = Object.create(null); },' +
+  '      key: function (i) { return Object.keys(m)[i] || null; },' +
+  '      get length() { return Object.keys(m).length; }' +
+  '    };' +
+  '  }' +
+  '  var ss = makeStore(), ls = makeStore();' +
+  '  try { Object.defineProperty(window, "sessionStorage", { get: function () { return ss; }, configurable: true }); } catch (e) {}' +
+  '  try { Object.defineProperty(window, "localStorage", { get: function () { return ls; }, configurable: true }); } catch (e) {}' +
+  '})();';
+
+/* A pass-through wrap of the iframe's fetch. The widget surfaces a send
+   failure only as an apology bubble in its own transcript — no event — so
+   this is the one place a 429 can be seen and reported. Observation only:
+   every request and response goes through untouched. */
+const FB_FETCH_WATCH =
+  '(function () {' +
+  '  var of = window.fetch.bind(window);' +
+  '  window.fetch = function (input, init) {' +
+  '    var url = (typeof input === "string") ? input : ((input && input.url) || "");' +
+  '    var p = of(input, init);' +
+  '    if (url.indexOf(":runSession") !== -1 || url.indexOf(":generateChatToken") !== -1) {' +
+  '      p.then(function (r) {' +
+  '        if (window.__fbNet) window.__fbNet(url, r.status, r.ok);' +
+  '      }, function () {' +
+  '        if (window.__fbNet) window.__fbNet(url, 0, false);' +
+  '      });' +
+  '    }' +
+  '    return p;' +
+  '  };' +
+  '})();';
+
+function fbCreateIframe(ctx) {
   const line = entryContextLine(ctx);
-  const cesm = document.createElement('ces-messenger');
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('title', 'O2 AI assistant conversation');
+  fbDom.cesmHost.appendChild(iframe);
+
+  const idoc = iframe.contentDocument;
+  const iwin = iframe.contentWindow;
+  if (!idoc || !iwin) {
+    fbLog('error', 'iframe document unavailable — falling back to the script');
+    fbFallBackToScript("Couldn’t start the assistant. Running the scripted conversation instead.");
+    return;
+  }
+
+  /* The document is written by hand: shims first, then the element, then the
+     widget script, so the storage shim is in place before any widget code can
+     touch storage. The element's attribute values all pass through
+     setAttribute — nothing user- or agent-supplied is spliced into markup. */
+  idoc.open();
+  idoc.write('<!doctype html><html><head><meta charset="utf-8">' +
+    '<style>html,body{margin:0;padding:0;height:100%;background:#F5F6F8}</style>' +
+    '</head><body></body></html>');
+  idoc.close();
+
+  const shim = idoc.createElement('script');
+  shim.textContent = FB_STORAGE_SHIM + '\n' + FB_FETCH_WATCH;
+  idoc.head.appendChild(shim);
+  iwin.__fbNet = fbObserveNetwork;
+
+  const cesm = idoc.createElement('ces-messenger');
   cesm.setAttribute('deployment-id', CONFIG.deploymentId);
   cesm.setAttribute('token-broker-url', CONFIG.tokenBrokerUrl);
   cesm.setAttribute('language-code', CONFIG.languageCode || 'en-GB');
@@ -3835,39 +3944,72 @@ function fbCreateWidget(ctx) {
   cesm.setAttribute('modality', 'chat');
   cesm.setAttribute('size', 'large');
   cesm.setAttribute('auto-open-chat', 'true');
+  cesm.setAttribute('chat-title', 'O2 AI assistant');
+  cesm.setAttribute('input-placeholder-text', 'Message…');
   cesm.setAttribute('initial-message', line);
   cesm.setAttribute('custom-css', FB_WIDGET_CSS + '\n' + fbComponentCss());
   /* No voice attribute: nothing is spoken on this frame. */
+  idoc.body.appendChild(cesm);
 
-  /* Listeners go on before the element is in the document, so nothing can
-     escape to Frame A's window listeners even on the first event. */
-  fbWireWidgetEvents();
+  /* Listeners attach to the iframe's window before the widget script runs, so
+     even ces-messenger-loaded — fired during mount — is caught. */
+  fbWireWidgetEvents(iwin);
 
-  fbDom.cesmHost.appendChild(cesm);
+  const script = idoc.createElement('script');
+  script.src = fbMessengerSrc();
+  script.addEventListener('error', function () {
+    fbLog('error', 'ces-messenger script failed to load in the iframe — falling back to the script');
+    fbFallBackToScript("Couldn’t load the assistant. Running the scripted conversation instead.");
+  });
+  idoc.head.appendChild(script);
+
+  fbState.iframe = iframe;
   fbState.cesm = cesm;
   fbDom.agent.classList.add('is-live');
-  fbLog('state', 'ces-messenger created', {
+  fbLog('state', 'widget iframe created', {
     initialMessage: line,
     deploymentId: CONFIG.deploymentId,
-    audioInput: 'NONE', audioOutput: 'DISABLED'
+    audioInput: 'NONE', audioOutput: 'DISABLED',
+    messengerSrc: fbMessengerSrc(),
+    isolation: 'own window for events, shimmed storage for session state'
   });
 
-  if (cesm.shadowRoot) fbOnMessengerLoaded();
-
-  /* Report the one thing that needs a real deployment to settle, without
-     waiting to be asked. Long enough for the connect handshake to have
-     produced some events. */
+  /* Report the isolation verdict without waiting to be asked — long enough
+     for the connect handshake to have produced events and a saved session. */
   fbLater(fbAuditEventIsolation, 6000);
 }
 
 function fbTeardownLiveSession() {
   fbDom.agent.classList.remove('is-live');
-  if (!fbState.cesm) return;
-  try { fbState.cesm.remove(); } catch (err) { /* not fatal */ }
+  if (!fbState.iframe && !fbState.cesm) return;
+  try { if (fbState.iframe) fbState.iframe.remove(); } catch (err) { /* not fatal */ }
+  fbState.iframe = null;
   fbState.cesm = null;
   fbState.connected = false;
+  fbState.sendFailures = 0;
   clear(fbDom.cesmHost);
   fbLog('state', 'live session torn down');
+}
+
+/* Called from inside the iframe for every runSession / generateChatToken
+   response. The 429 seen in testing was RESOURCE_EXHAUSTED — an API quota on
+   the project, not a page fault — and without this it looks like the widget
+   silently breaking. */
+function fbObserveNetwork(url, status, ok) {
+  if (ok) {
+    if (fbState.sendFailures) fbState.sendFailures = 0;
+    return;
+  }
+  fbState.sendFailures++;
+  const what = url.indexOf(':generateChatToken') !== -1 ? 'token request' : 'send';
+  fbLog('error', 'widget ' + what + ' failed with HTTP ' + status +
+    (status === 429 ? ' — RESOURCE_EXHAUSTED. This is the CES API quota on the project, not the page. ' +
+      'Two live frames double the draw; CONFIG_B.mode = "simulated" halves it.' : ''),
+    { url: url.slice(0, 140), status: status, consecutiveFailures: fbState.sendFailures });
+  fbSetAgentStatus(status === 429 ? 'Quota exceeded — wait a moment and retry' : 'Connection trouble', false);
+  if (fbState.sendFailures >= 3) {
+    fbSetAgentStatus('Quota exhausted — Replay B runs the scripted version', false);
+  }
 }
 
 /* If the widget cannot be reached, Frame B drops back to its own script rather
@@ -3887,51 +4029,22 @@ function fbSetAgentStatus(text, connected) {
   fbDom.agentStatus.appendChild(document.createTextNode(text));
 }
 
-/* ---- 9.8 Events, intercepted at Frame B's host -----------------------------
-   Frame A listens for these on window. If the widget dispatches them on its own
-   element they travel up through this host on the way there, so Frame B handles
-   each one here and calls stopPropagation, and Frame A never sees an event that
-   belongs to Frame B. Frame A's own events do not pass through this host and
-   are unaffected.
-
-   If instead the widget dispatches straight onto window, nothing here fires and
-   the two frames cannot be told apart. fbAuditEventIsolation reports that
-   plainly rather than letting it be discovered as strange behaviour, and
-   CONFIG_B.mode = "simulated" is the fallback. */
-function fbWireWidgetEvents() {
-  if (fbState.eventsWired) return;
-  fbState.eventsWired = true;
+/* ---- 9.8 Events, on the iframe's own window --------------------------------
+   The widget dispatches every ces-* event with window.dispatchEvent — read
+   from its source, not assumed. Inside the iframe, "window" is the iframe's
+   window, so Frame B listens there and gets every event already attributed.
+   Frame A's window listeners are physically out of reach of these events, and
+   Frame A's own widget — in the top document — still reaches them exactly as
+   before. */
+function fbWireWidgetEvents(iwin) {
   for (let i = 0; i < FB_EVENTS.length; i++) {
     (function (name) {
-      fbDom.cesmHost.addEventListener(name, function (e) {
-        e.stopPropagation();
-        fbState.hostEvents++;
+      iwin.addEventListener(name, function (e) {
+        fbState.iframeEvents++;
         fbHandleWidgetEvent(name, e);
       });
     })(FB_EVENTS[i]);
   }
-  /* A last-resort net. Two counts, because they mean different things:
-     windowEvents  — reached window still carrying a target inside Frame B, so
-                     it is Frame B's and can at least be labelled as such.
-     anyWindowEvents — reached window at all. If Frame B has a session open and
-                     this is climbing while hostEvents stays at zero, the widget
-                     is dispatching straight onto window and the two frames
-                     cannot be told apart. */
-  for (let i = 0; i < FB_EVENTS.length; i++) {
-    (function (name) {
-      window.addEventListener(name, function (e) {
-        fbState.anyWindowEvents++;
-        if (!fbOwnsEvent(e)) return;
-        fbState.windowEvents++;
-        fbLog('event', name + ' (reached window — see the isolation audit)', detailOf(e));
-      });
-    })(FB_EVENTS[i]);
-  }
-}
-
-function fbOwnsEvent(e) {
-  const t = e && e.target;
-  return !!(t && t.nodeType === 1 && fbDom.cesmHost.contains(t));
 }
 
 function fbHandleWidgetEvent(name, e) {
@@ -4016,15 +4129,16 @@ function fbRegisterTool(displayName, handler) {
 
 /* ---- 9.10 Getting a component into the widget's transcript ------------------
    insertMessage takes an HTML string, and that string is parsed inside the
-   widget's shadow root. Two things do not survive the trip and are dealt with
-   here rather than by changing the shared builders:
+   widget's shadow root — in Frame B's case, inside the iframe. Two things do
+   not survive the trip and are dealt with here rather than by changing the
+   shared builders:
 
-   - Page CSS does not cross a shadow boundary, so the card rules are harvested
-     from this page's own stylesheet and handed to the widget as custom-css.
-     One source of truth, no duplicated stylesheet.
-   - <use href="#i-calendar"> resolves against the tree it sits in, and the
-     sprite is in the document, not the shadow root. Each <use> is replaced with
-     the symbol's own contents before serialising.
+   - Page CSS does not cross a shadow boundary (nor the iframe), so the card
+     rules are harvested from this page's own stylesheet and handed to the
+     widget as custom-css. One source of truth, no duplicated stylesheet.
+   - <use href="#i-calendar"> resolves against the document it lands in, and
+     the sprite is in this one. Each <use> is replaced with the symbol's own
+     contents before serialising.
    ========================================================================= */
 const FB_CSS_KEEP = ['.genui', '.gc-', '.gu-', '.gp-', '.gd-', '.sr-only', '.fb-card'];
 const FB_KEYFRAMES_KEEP = ['msg-in', 'fb-seg-in'];
@@ -4080,10 +4194,13 @@ function fbInlineSprites(node) {
   return node;
 }
 
-/* The interaction return path cannot rely on data-* attributes surviving the
-   widget's sanitiser, so the phrase behind each action is kept here, on the
-   page, keyed by the label the customer sees. Nothing in the injected HTML has
-   to survive except the text. */
+/* The label → phrase map. The widget's sanitiser (read from its source) runs
+   DOMPurify with ALLOWED_ATTR ['href','title','class','style','target','rel',
+   'src','controls','width','height','autoplay','muted'] — data-* is stripped,
+   confirming what the sibling project saw. Frame B passes safe: true (below),
+   which the widget honours by skipping sanitisation, so data-send survives —
+   but the map is kept as the fallback so a future build tightening safe
+   handling degrades to a working tap, not a dead button. */
 function fbRecordActions(node) {
   const buttons = node.querySelectorAll('[data-send]');
   for (let i = 0; i < buttons.length; i++) {
@@ -4101,12 +4218,24 @@ function fbComponentHtml(name, node) {
 
 /* In scripted mode the built node goes straight into Frame B's own thread. In
    live mode it is serialised and handed to the widget, which owns the
-   transcript. */
+   transcript.
+
+   safe: true is deliberate and justified: the sanitiser's attribute allowlist
+   would also strip the SVG attributes (viewBox, d, stroke…) that the card
+   icons are made of, and this HTML never contains raw agent output — it is
+   serialised from a DOM the builders assembled node by node, every
+   agent-supplied string having entered through textContent against a
+   validated schema. Sanitising it again would only break it.
+
+   templateId is what routes taps back: the widget's own click handler looks
+   up registerRichMessageHandler entries by the payload's templateId. */
 function fbInsertComponent(name, node) {
   if (fbState.mode === 'live' && fbState.cesm && typeof fbState.cesm.insertMessage === 'function') {
     const html = fbComponentHtml(name, node);
     try {
-      fbState.cesm.insertMessage('BOT', { payload: { html: html } });
+      fbState.cesm.insertMessage('BOT', {
+        payload: { html: html, safe: true, templateId: 'genui_component' }
+      });
       fbLog('render', 'insertMessage sent to the widget transcript', { component: name, bytes: html.length });
       return;
     } catch (err) {
@@ -4124,21 +4253,23 @@ function fbInsertComponent(name, node) {
    9.11 The interaction return path inside the widget.
 
    A tap on an action inside an injected component has to come back as an
-   ordinary user turn. Two routes are wired, because it is not knowable in
-   advance which of them survives the widget's sanitiser:
+   ordinary user turn. Two routes are wired:
 
-   1. registerRichMessageHandler, the documented route, which hands back the
-      clicked element.
+   1. registerRichMessageHandler('genui_component', …) — the widget's own
+      route. Its click handler fires for any click inside a message whose
+      payload carries that templateId and hands back the clicked element.
+      One contract detail read from the source: the widget dereferences the
+      handler's return value, so the handler must always return an object.
    2. A delegated click listener on the widget's shadow root, matched on the
       class names the shared builders already emit.
 
-   Both are registered and the second ignores anything the first has just
-   handled, so whichever survives, the tap fires once.
+   Both fire for the same tap on current builds, so they funnel through one
+   handler that drops the repeat. Two routes stay wired so that a future
+   widget build changing either one degrades to a working tap, not a dead
+   button.
 
-   Neither route relies on data-* attributes surviving. The phrase behind each
-   action is held on the page in fbState.actionMap, keyed by the label the
-   customer reads, and data-send is only consulted if it happens to have
-   survived. Only the visible text has to make it through.
+   The phrase is read from data-send (which survives, because the component
+   was inserted with safe: true), with the page-side label map as fallback.
    ========================================================================= */
 const FB_ACTION_CLASSES = ['gc-action', 'gp-row'];
 
@@ -4208,8 +4339,12 @@ function fbWireWidgetInteraction() {
     try {
       cesm.registerRichMessageHandler('genui_component', function (message, clickedElement) {
         const path = clickedElement ? [clickedElement].concat(fbAncestors(clickedElement)) : [];
-        const node = fbActionElementIn(path) || clickedElement;
-        fbHandleActionTap(node, 'registerRichMessageHandler');
+        const node = fbActionElementIn(path);
+        /* Fires for any click inside the card, not only on an action —
+           ignore the rest. Always return an object: the widget reads
+           .action off the return value. */
+        if (node) fbHandleActionTap(node, 'registerRichMessageHandler');
+        return {};
       });
       fbLog('state', 'interaction: registerRichMessageHandler registered for genui_component');
     } catch (err) {
@@ -4229,51 +4364,53 @@ function fbAncestors(node) {
 }
 
 /* ---- 9.12 Isolation audit --------------------------------------------------
-   The one thing that cannot be settled without a live deployment: whether two
-   ces-messenger elements on one page keep their events and tool calls apart.
-   Registration is per element, so tool calls should. Events depend on where the
-   widget dispatches them. This reports what actually happened. */
+   The isolation is structural now — its own window for events, its own
+   storage for session state — so the audit's job has shifted from "which way
+   did the widget behave" to confirming the structure is doing its work:
+   events arriving on the iframe's window, and Frame B's session id differing
+   from anything Frame A's widget saved. */
 function fbAuditEventIsolation() {
   const sessionOpen = !!fbState.cesm;
   const verdict = {
     frameBSessionOpen: sessionOpen,
-    caughtAtFrameBsOwnHost: fbState.hostEvents,
-    reachedWindowStillAttributable: fbState.windowEvents,
-    reachedWindowAtAll: fbState.anyWindowEvents,
+    isolation: 'iframe (own window, shimmed storage)',
+    eventsOnIframeWindow: fbState.iframeEvents,
     isolated: null
   };
 
   if (!sessionOpen) {
-    verdict.isolated = null;
     fbLog('state', 'isolation audit: Frame B has no live session, nothing to check', verdict);
     return verdict;
   }
 
-  if (fbState.hostEvents > 0 && fbState.windowEvents === 0) {
-    verdict.isolated = true;
-    fbLog('state', 'isolation audit: Frame B\'s widget events are caught at its own host and stop there. ' +
-      'Frame A cannot see them.', verdict);
-    return verdict;
+  /* The real sessionStorage belongs to Frame A's widget alone. If Frame B's
+     session id ever shows up in it, the shim has failed. */
+  try {
+    const saved = window.sessionStorage.getItem('bidi-widget-session');
+    const savedId = saved ? (JSON.parse(saved).sessionId || '') : '';
+    let fbId = '';
+    try {
+      const fbSaved = fbState.iframe && fbState.iframe.contentWindow.sessionStorage.getItem('bidi-widget-session');
+      fbId = fbSaved ? (JSON.parse(fbSaved).sessionId || '') : '';
+    } catch (err) { /* iframe gone */ }
+    verdict.frameASavedSessionId = savedId || '(none)';
+    verdict.frameBSessionId = fbId || '(not yet saved)';
+    verdict.sessionShared = !!(savedId && fbId && savedId === fbId);
+  } catch (err) {
+    verdict.sessionShared = null;
   }
 
-  if (fbState.hostEvents === 0 && fbState.anyWindowEvents > 0) {
+  if (verdict.sessionShared) {
     verdict.isolated = false;
-    fbLog('error', 'isolation audit: the widget dispatches its events straight onto window, where Frame A ' +
-      'also listens, and they carry no target to tell the frames apart. Frame A will react to Frame B\'s ' +
-      'turns. Tool calls are still per element and stay correct. Set CONFIG_B.mode = "simulated" to run ' +
-      'only Frame A live.', verdict);
-    return verdict;
-  }
-
-  if (fbState.hostEvents === 0) {
-    verdict.isolated = null;
+    fbLog('error', 'isolation audit: both frames are on the SAME session — the storage shim is not ' +
+      'holding. Set CONFIG_B.mode = "simulated" to run only Frame A live.', verdict);
+  } else if (fbState.iframeEvents > 0) {
+    verdict.isolated = true;
+    fbLog('state', 'isolation audit: Frame B\'s widget events arrive on its own iframe window and its ' +
+      'session state stays in its own shimmed storage. Frame A can see neither.', verdict);
+  } else {
     fbLog('state', 'isolation audit: no widget events seen yet — start the conversation and check again', verdict);
-    return verdict;
   }
-
-  verdict.isolated = false;
-  fbLog('error', 'isolation audit: Frame B events are reaching window as well as its own host. ' +
-    'Set CONFIG_B.mode = "simulated" to run only Frame A live.', verdict);
   return verdict;
 }
 
