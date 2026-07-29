@@ -1,4 +1,4 @@
-# Billing comprehension demo — voice plus generative UI
+# Billing comprehension demo
 
 A single-file static microsite for a telecoms product team. It has two jobs: explain the digital billing AI opportunity to executive stakeholders, and demonstrate the thing working inside a phone frame at the foot of the page. A customer messaging about their bill reaches an agent that, instead of reading a nine-line breakdown aloud, draws components onto the screen — a bill summary, then a usage and allowance card that proves an out-of-plan charge visually. Everything is mock data.
 
