@@ -2,7 +2,7 @@
 
 A single-file static microsite for a telecoms product team. It has two jobs: explain the digital billing AI opportunity to executive stakeholders, and demonstrate the thing working inside a phone frame at the foot of the page. A customer messaging about their bill reaches an agent that, instead of reading a nine-line breakdown aloud, draws components onto the screen — a bill summary, then a usage and allowance card that proves an out-of-plan charge visually. Everything is mock data.
 
-**Two phone frames sit side by side, showing two ways in.** They exist so a director can watch both and say which one we build.
+**Two phone frames sit side by side, showing two ways in.** 
 
 | | Pattern A — in the app | Pattern B — in the chat |
 | --- | --- | --- |
@@ -10,34 +10,19 @@ A single-file static microsite for a telecoms product team. It has two jobs: exp
 | Where it happens | The native bills screen | The chat window itself |
 | Modality | Voice | Text |
 | Where components appear | A slide-out sheet over the app | Inline in the chat transcript |
-| Journey | chat → app → voice → chat | chat → chat |
+| Journey | app → AWS chat → GECX voice → AWS chat | app → AWS chat → GECX chat → AWS chat |
 
-The comparison is the point. Pattern A moves the customer from chat to voice and back to chat again, which stakeholders have said is a heavy transition. Pattern B keeps them in text the whole way, at the cost of the app context the agent is working on top of.
+The comparison is the point. Pattern A moves the customer from chat to voice and back to chat again, which is a heavy transition. Pattern B keeps them in text the whole way.
 
 Each frame runs independently: its own session, its own script, its own replay button, its own end marker. Starting one does not touch the other, and you can run both at once.
 
 Two files, no build step: `index.html` (all HTML, CSS and JavaScript) and this README. No frameworks, no bundler, no npm. The only external resource is the Google CES messenger web component, and it is fetched lazily — nothing is requested at all until a live agent session is started.
 
-## Deploy to GitHub Pages
+## Deployed to GitHub Pages
 
-This repository holds an unrelated project as well, so the demo lives in `docs/` and Pages is pointed at that folder. **Settings → Pages → Build and deployment → Deploy from a branch**, then pick the branch and set the folder to **`/docs`**.
-
-That publishes `docs/` and nothing else — the terraform, the React frontend and the backend agent definitions are never served. The site root is the folder itself, so the demo is at `https://<owner>.github.io/<repo>/`, not `/docs/`.
-
-Pages only ever offers two folders, `/ (root)` and `/docs`; there is no way to nominate an arbitrary one. If you are dropping these two files into a repository of their own, put them at the root and choose `/ (root)` instead.
-
-`.nojekyll` sits alongside them so Pages serves the files as they are rather than running them through Jekyll.
-
-**The scripted demo works with nothing connected.** Set `CONFIG.mode` to `"simulated"` and the whole conversation plays from a script with no backend, no token request and no `<ces-messenger>` element on the page. Use this mode in stakeholder sessions — it is the reliable one, and it is a one-word change at the top of the file.
+**The scripted demo works with nothing connected.** Set `CONFIG.mode` to `"simulated"` and the whole conversation plays from a script with no backend, no token request and no `<ces-messenger>` element on the page.
 
 `CONFIG.mode` is currently `"live"` against a configured deployment. Nothing is created or requested on page load either way; a session only opens when the customer presses **Open my bills**. If the widget cannot be reached, the page falls back — a toast offers **Run scripted demo instead**, which switches to the scripted path without a reload.
-
-### Before you publish this on a public URL
-
-A Pages site is public even when the repository is private. Two consequences worth deciding on deliberately:
-
-- The `CONFIG` block ships to the browser, so the deployment id and the tool resource names are readable by anyone with the URL. They are not credentials — the managed token broker handles authentication — but they do identify the deployment.
-- With `mode: "live"`, anyone who finds the URL and presses **Open my bills** starts a real session against that deployment, which consumes quota. **There are now two frames, so a visitor who starts both opens two sessions and consumes two lots of quota.** If the page is going somewhere discoverable, set `mode` to `"simulated"` and flip it to `"live"` only for the machine driving a session.
 
 ## Running the demo
 
@@ -82,10 +67,6 @@ Frame B is built so this cannot happen: it catches every `ces-*` event on its ow
 - *"…the widget dispatches its events straight onto window"* — set `CONFIG_B.mode = "simulated"` and run only Frame A live.
 
 You can also call `window.__demoB.auditIsolation()` in the console at any point.
-
-### What has not been checked against the real widget
-
-Everything above about the two frames was verified against a stand-in `<ces-messenger>` implementing the documented API, in headless Chromium. **It has not been run against the real deployment**, because the environment the change was built in has no outbound access to `gstatic.com`, so the widget script could never load. One run with `?debug` against the real deployment settles it — that is what the isolation audit is for.
 
 ### Getting a component into the transcript
 
@@ -153,12 +134,6 @@ A tool is matched by its exact resource name, and a project can be addressed eit
 The `<app>` segment must match across the deployment and all three tools — a tool belongs to an app, and a tool id carrying a different app id than the deployment will never be called no matter which project spelling is used.
 
 If you would rather have one canonical form, make the project segment in `tools.*` match the one in `deploymentId` and the second registration stops happening.
-
-### Publish before you test
-
-A deployment serves a **published** agent version, not your working draft. Save your changes, verify them in the simulator, publish a new version, then point the deployment at that version. Only then will this page see them. Testing against an unpublished draft is the usual reason a tool call never arrives.
-
-When a tool call does not arrive, open `?debug` and look for `ces-tool-call-received`. That event is the ground truth that a tool fired, and it carries the resource name the agent actually used — the console display name is not reliable for this. With two frames, check the prefix on the line: `[Frame B]` entries belong to Frame B, unprefixed ones to Frame A.
 
 ### The three client-side functions
 
