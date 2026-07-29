@@ -197,16 +197,55 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 }
 .demo-instruction{font-size:15px;color:var(--site-ink-2);max-width:70ch;margin-top:16px}
 .demo-instruction strong{color:var(--site-ink);font-weight:600}
-/* A pool of light under the phone so a dark bezel does not sink into a dark
-   page. */
-.demo-stage{position:relative;display:flex;justify-content:center;margin-top:48px}
+/* A pool of light under the phones so a dark bezel does not sink into a dark
+   page. Sized to cover both frames, and to collapse with them when they stack. */
+.demo-stage{
+  position:relative;display:flex;justify-content:center;align-items:flex-start;
+  gap:40px;flex-wrap:wrap;margin-top:48px;
+}
 .demo-stage::before{
   content:"";position:absolute;left:50%;top:8%;translate:-50% 0;
-  width:min(760px,92%);height:84%;border-radius:50%;pointer-events:none;
-  background:radial-gradient(closest-side, rgba(0,80,255,.26), transparent 74%);
+  width:min(1000px,96%);height:84%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side, rgba(0,80,255,.24), transparent 74%);
   filter:blur(18px);
 }
 .demo-stage>*{position:relative}
+
+/* ---- 2.5.1 The two compared frames ----------------------------------------
+   One column per pattern: a caption card naming it, the phone, then that
+   frame's own controls. The columns are independent — nothing is shared
+   between them but the page they sit on. */
+.frame-col{
+  display:flex;flex-direction:column;align-items:center;gap:20px;
+  width:calc(var(--phone-w) + 24px);
+}
+.frame-cap{
+  width:100%;padding:18px 20px;border-radius:14px;
+  background:var(--site-surface);border:1px solid var(--site-line);
+  box-shadow:var(--shadow-card);
+}
+.frame-cap-tag{
+  font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--site-accent);
+}
+.frame-col[data-frame="b"] .frame-cap-tag{color:var(--site-violet)}
+.frame-cap-title{font-size:16px;line-height:1.3;font-weight:650;letter-spacing:-.01em;margin-top:8px}
+.frame-cap-body{font-size:13px;color:var(--site-ink-2);margin-top:8px}
+.frame-cap-flow{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px;
+  font-size:11px;font-weight:650;color:var(--site-ink-3);
+}
+.frame-cap-flow span{
+  padding:3px 9px;border-radius:999px;
+  background:var(--site-accent-soft);color:var(--site-accent);
+}
+.frame-col[data-frame="b"] .frame-cap-flow span{
+  background:var(--site-violet-soft);color:var(--site-violet);
+}
+.frame-cap-flow i{font-style:normal;color:var(--site-ink-3)}
+.frame-controls{
+  display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;width:100%;
+}
 
 /* ============================================================================
    2.6 Notes and limitations
@@ -663,6 +702,111 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 }
 
 /* ============================================================================
+   9. Frame B — the web-widget comparison.
+   Everything here is prefixed fb- and is used only by the second phone. Frame A
+   shares none of it. The generative UI cards themselves (.genui and everything
+   under it) are shared, because they are the thing being compared: the same
+   component in a different surface.
+   ========================================================================= */
+/* ---- 9.1 Frame B's messaging screen ---------------------------------------
+   Deliberately not restyled: Frame B reuses .screen-a, .chat-*, .msg*, .typing
+   and .deeplink-card exactly as Frame A does. The customer starts in the same
+   place in both patterns — that is what makes the comparison fair. Only the
+   instance is separate. */
+
+/* ---- 9.2 The agent surface that replaces it -------------------------------
+   Where Frame A leaves messaging for the native app, Frame B swaps the chat
+   window for a full-screen agent surface in the same place. It covers the whole
+   viewport: no tab bar, no AI dock, no slide-out. */
+.fb-agent{
+  z-index:20;background:var(--page);
+  opacity:0;transform:translateY(14px);pointer-events:none;visibility:hidden;
+  transition:opacity 320ms ease,transform 320ms ease,visibility 0s linear 320ms;
+}
+.fb-agent.is-shown{
+  opacity:1;transform:none;pointer-events:auto;visibility:visible;
+  transition:opacity 320ms ease,transform 320ms ease,visibility 0s linear 0s;
+}
+.fb-agent-header{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:calc(var(--statusbar-h) + 8px) 16px 12px;
+  background:linear-gradient(160deg,var(--navy-900) 0%,var(--blue-600) 100%);
+  color:#fff;
+}
+.fb-agent-header .chat-back{color:rgba(255,255,255,.9)}
+.fb-agent-avatar{
+  width:32px;height:32px;flex:0 0 auto;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);
+}
+.fb-agent-avatar svg{fill:#fff}
+.fb-agent-title{font-size:15px;font-weight:650;line-height:1.2}
+.fb-agent-sub{display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.86);margin-top:2px}
+.fb-agent-dot{width:6px;height:6px;border-radius:50%;background:#5BE39A;flex:0 0 auto}
+
+.fb-thread{
+  flex:1 1 auto;overflow-y:auto;scrollbar-width:none;
+  display:flex;flex-direction:column;gap:10px;padding:16px 14px 18px;
+}
+.fb-thread::-webkit-scrollbar{display:none}
+.fb-sys{
+  align-self:center;max-width:88%;text-align:center;
+  font-size:11px;line-height:1.45;color:var(--ink-600);
+  background:var(--blue-050);border-radius:999px;padding:6px 13px;
+  animation:msg-in 260ms ease both;
+}
+
+/* A component message. Full width rather than a 78% bubble — the card is the
+   message, not something inside one. */
+.fb-card{
+  align-self:stretch;background:var(--surface);border:1px solid var(--line);
+  border-radius:16px;border-bottom-left-radius:6px;padding:16px;
+  animation:msg-in 260ms ease both;
+}
+/* No sheet close button to clear in a transcript. */
+.fb-card .genui>*:first-child{padding-right:0}
+/* buildUsageAllowanceCard fills its bar from a requestAnimationFrame closure
+   over the node it built. That closure cannot survive being serialised to HTML
+   and re-parsed inside the widget, so inside Frame B the same fill is driven
+   from CSS instead, and works either way. */
+.fb-card .gu-seg{transform:scaleX(1)}
+.fb-card .gu-seg.within{animation:fb-seg-in 450ms cubic-bezier(.22,1,.36,1) both}
+.fb-card .gu-seg.over{animation:fb-seg-in 250ms cubic-bezier(.22,1,.36,1) 450ms both}
+@keyframes fb-seg-in{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* The composer. In scripted mode it holds the customer's next line as a draft
+   so the presenter controls the pacing, exactly as Frame A's Next button does. */
+.fb-composer{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:10px 12px 16px;background:var(--surface);border-top:1px solid var(--line);
+}
+.fb-composer-field{
+  flex:1 1 auto;min-width:0;padding:10px 14px;border-radius:999px;
+  background:var(--page);border:1px solid var(--line);
+  font-size:14px;line-height:1.3;color:var(--ink-400);text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.fb-composer.is-armed .fb-composer-field{color:var(--ink-900)}
+.fb-composer-send{
+  width:36px;height:36px;flex:0 0 auto;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--line);color:#8A93A0;
+  transition:background 160ms ease,color 160ms ease;
+}
+.fb-composer.is-armed .fb-composer-send{background:var(--blue-600);color:#fff}
+.fb-composer-send svg{fill:currentColor}
+
+/* ---- 9.3 The live widget host ---------------------------------------------
+   Frame A hides its widget off-screen because there the widget is only a voice
+   transport. Here the widget is the surface the customer is looking at, so it
+   fills what is left of the screen and the scripted thread steps aside. */
+.fb-widget-host{display:none;flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
+.fb-agent.is-live .fb-thread,
+.fb-agent.is-live .fb-composer{display:none}
+.fb-agent.is-live .fb-widget-host{display:block}
+.fb-widget-host ces-messenger{display:block;width:100%;height:100%}
+
+/* ============================================================================
    7. Demo controls and debug panel
    ========================================================================= */
 .controls{max-width:760px;margin:28px auto 0;display:flex;flex-direction:column;gap:14px}
@@ -697,6 +841,8 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
   padding:10px 12px;border-bottom:1px solid var(--site-line);background:var(--site-surface-2);
 }
 .debug-head h3{font-size:13px;font-weight:700;color:var(--site-ink)}
+.debug-legend{font-size:11px;font-weight:500;color:var(--site-ink-3);margin-left:10px}
+.debug-legend code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .debug-log{
   max-height:300px;overflow:auto;margin:0;padding:10px 12px;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;
@@ -728,6 +874,12 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
   .cards-3,.entries{grid-template-columns:1fr}
   .section{padding:64px 0}
   .hero{padding:64px 0 56px}
+}
+/* Two phones need roughly 870px of content width. Below that they stack, and
+   the pool of light collapses to sit behind one column rather than two. */
+@media (max-width:920px){
+  .demo-stage{gap:56px}
+  .demo-stage::before{width:min(620px,92%)}
 }
 @media (max-width:520px){
   :root{--phone-w:340px;--phone-h:720px}
@@ -895,10 +1047,23 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
      ======================================================================= -->
 <section class="demo-section" aria-labelledby="demo-h">
   <div class="wrap">
-    <h2 class="section-title" id="demo-h">The demo</h2>
-    <p class="demo-instruction">Start in the messaging conversation and tap <strong>Open my bills</strong>. The agent takes over from there. Customer turns wait for you — tap <strong>Next</strong> in the caption strip to advance.</p>
+    <h2 class="section-title" id="demo-h">The demo — two ways in, side by side</h2>
+    <p class="demo-instruction">One agent, one set of components, two journeys. Both customers start in the same messaging conversation and ask the same question. <strong>Pattern A</strong> hands them from chat to voice and back again; <strong>Pattern B</strong> keeps them in text throughout. Start the left frame with <strong>Open my bills</strong> and the right with <strong>Continue in chat</strong>. Customer turns wait for you in both — tap <strong>Next</strong> on the left, the send arrow on the right.</p>
+    <p class="demo-instruction">This is a different question from the two entry points above: those are about <em>when</em> we place a way in, these are about <em>what happens</em> once the customer takes one.</p>
 
     <div class="demo-stage">
+      <!-- ==================================================================
+           Frame A — the existing demo. Messaging deep link → native bills
+           screen → voice agent → components in a slide-out sheet.
+           =============================================================== -->
+      <div class="frame-col" data-frame="a">
+        <div class="frame-cap">
+          <p class="frame-cap-tag">Pattern A · in the app</p>
+          <h3 class="frame-cap-title">Voice on the bills screen, components in a slide-out</h3>
+          <p class="frame-cap-body">The deep link leaves messaging and opens the native bills screen. A voice agent picks up what was already said and draws components into a sheet over the app.</p>
+          <p class="frame-cap-flow"><span>Chat</span><i>→</i><span>App</span><i>→</i><span>Voice</span><i>→</i><span>Chat</span></p>
+        </div>
+
       <!-- ==================================================================
            3. The phone frame. Chrome only — nothing in the demo depends on it.
            =============================================================== -->
@@ -1053,28 +1218,119 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
           <div class="cesm-host" id="cesmHost" aria-hidden="true"></div>
         </div>
       </div>
+
+        <!-- Frame A's own controls. Same elements and same handlers as before;
+             they have moved under the frame they drive, nothing more. -->
+        <div class="frame-controls">
+          <span class="mode-indicator" id="modeIndicator" data-live="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span id="modeText">Scripted</span>
+          </span>
+          <button type="button" class="ctl-btn" id="btnReplay">Replay A</button>
+          <span class="end-marker" id="endMarker">
+            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>
+            End of demo
+          </span>
+        </div>
+      </div>
+
+      <!-- ==================================================================
+           9. Frame B — the web-widget comparison. Messaging deep link replaces
+           the chat window in place with a full-screen GECX widget; components
+           are injected inline into the transcript rather than into a sheet.
+           Nothing below is shared with Frame A.
+           =============================================================== -->
+      <div class="frame-col" data-frame="b">
+        <div class="frame-cap">
+          <p class="frame-cap-tag">Pattern B · in the chat</p>
+          <h3 class="frame-cap-title">The chat window becomes the agent, components inline</h3>
+          <p class="frame-cap-body">The messaging window is replaced in place by a full-screen web widget. The conversation stays in text and the same components are injected into the transcript itself.</p>
+          <p class="frame-cap-flow"><span>Chat</span><i>→</i><span>Chat</span></p>
+        </div>
+
+        <div class="phone">
+          <div class="phone-viewport" id="fbViewport">
+            <div class="notch" aria-hidden="true"></div>
+
+            <div class="statusbar" id="fbStatusBar" aria-hidden="true">
+              <span class="statusbar-time">09:41</span>
+              <span class="statusbar-glyphs">
+                <svg width="17" height="12" viewBox="0 0 17 12"><use href="#i-signal"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12"><use href="#i-wifi"/></svg>
+                <svg width="27" height="12" viewBox="0 0 27 12"><use href="#i-battery"/></svg>
+              </span>
+            </div>
+
+            <!-- 9.2 The agent surface. Mounted underneath, revealed in place
+                 when the messaging window hands over. -->
+            <div class="screen fb-agent" id="fbAgent">
+              <div class="fb-agent-header">
+                <span class="chat-back" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+                </span>
+                <span class="fb-agent-avatar" aria-hidden="true">
+                  <svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-sparkle"/></svg>
+                </span>
+                <span>
+                  <span class="fb-agent-title">O2 AI assistant</span>
+                  <span class="fb-agent-sub" id="fbAgentStatus">
+                    <span class="fb-agent-dot" aria-hidden="true"></span>Connected
+                  </span>
+                </span>
+              </div>
+              <div class="fb-thread" id="fbThread" aria-live="polite"></div>
+              <div class="fb-composer" id="fbComposer">
+                <span class="fb-composer-field" id="fbComposerText">Message…</span>
+                <button type="button" class="fb-composer-send" id="fbComposerSend" aria-label="Send" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-arrow-up"/></svg>
+                </button>
+              </div>
+              <!-- In live mode the widget itself is the surface: it fills the
+                   rest of the screen and the scripted thread above is hidden.
+                   Unlike Frame A's host this one is meant to be seen. -->
+              <div class="fb-widget-host" id="fbCesmHost"></div>
+            </div>
+
+            <!-- 9.1 The messaging conversation. Same markup and same styling as
+                 Frame A's screen A — only the instance differs. -->
+            <div class="screen screen-a" id="fbScreenA">
+              <div class="chat-header">
+                <span class="chat-back" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+                </span>
+                <p class="chat-title">O2 · Live chat</p>
+              </div>
+              <div class="chat-body" id="fbChatBody" aria-live="polite"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="frame-controls">
+          <span class="mode-indicator" id="fbModeIndicator" data-live="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span id="fbModeText">Scripted</span>
+          </span>
+          <button type="button" class="ctl-btn" id="fbBtnReplay">Replay B</button>
+          <span class="end-marker" id="fbEndMarker">
+            <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>
+            End of demo
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- ==================================================================
-         7. Demo controls, outside the phone so the screen stays clean.
+         7. Demo controls shared by both frames.
          =============================================================== -->
     <div class="controls">
       <div class="controls-row">
-        <span class="mode-indicator" id="modeIndicator" data-live="false">
-          <span class="mode-dot" aria-hidden="true"></span>
-          <span id="modeText">Scripted</span>
-        </span>
-        <button type="button" class="ctl-btn" id="btnReplay">Replay demo</button>
         <button type="button" class="ctl-btn" id="btnDebug" aria-expanded="false" aria-controls="debugPanel">Open debug</button>
-        <span class="end-marker" id="endMarker">
-          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>
-          End of demo
-        </span>
       </div>
       <p class="small-print">Demo build. Illustrative data — not O2 pricing.</p>
       <div class="debug" id="debugPanel">
         <div class="debug-head">
-          <h3>Debug log</h3>
+          <h3>Debug log <span class="debug-legend">Frame B entries are prefixed <code>[Frame B]</code>; unprefixed entries are Frame A</span></h3>
           <button type="button" class="ctl-btn" id="btnCopyLog">Copy log</button>
         </div>
         <div class="debug-log" id="debugLog"></div>
@@ -1091,12 +1347,14 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
     <h2 class="section-title" id="notes-h">Notes and limitations</h2>
     <ul class="notes">
       <li><strong>Mock data only.</strong> Figures are illustrative and are not O2 pricing. The account number, the device and the usage are invented for the demo.</li>
+      <li><strong>One agent serves both frames.</strong> Same deployment, same three tools, no agent-side difference between the two patterns. Where a component is drawn, and whether the conversation is spoken or typed, are decisions this page makes — not the agent’s.</li>
+      <li><strong>Two live frames are two sessions.</strong> Running both against a real deployment consumes two lots of quota. Either frame can be run from its script instead.</li>
       <li><strong>One demo account, one scripted path.</strong> The agent will answer off-script but has no data beyond the fixture, so it will generalise rather than look anything up.</li>
       <li><strong>Phase 2 entry points are shown but inert.</strong> They are marked on the bills screen to show placement, not to be used.</li>
       <li><strong>No payments, no card or bank details, no document sending.</strong> Those are out of scope for the demo by design, not pending work.</li>
       <li><strong>Containment figures are indicative.</strong> They describe the shape of the opportunity and are not a forecast.</li>
       <li><strong>The component catalogue is fixed by this page.</strong> The agent cannot invent a component or a field; anything outside the schema is rejected and returned to the agent as a structured error.</li>
-      <li><strong>Voice quality depends on the device and the room.</strong> In a noisy stakeholder session, use the scripted mode.</li>
+      <li><strong>Voice quality depends on the device and the room.</strong> In a noisy stakeholder session, use the scripted mode. It is also the reason pattern B is worth comparing: it never needs the room to be quiet.</li>
     </ul>
   </div>
 </section>
@@ -1124,6 +1382,20 @@ const CONFIG = {
     render_genui_component: "projects/project-bf6872b8-4ebc-4a0f-872/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/tools/3a8ab108-87c3-4cd1-8e7f-7ca64ef7b81a",
     close_genui_surface:    "projects/project-bf6872b8-4ebc-4a0f-872/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/tools/2c180df0-ac13-4dd8-976e-317ba6164bc2"
   }
+};
+
+/* ----------------------------------------------------------------------------
+   Frame B's only configuration. Frame B otherwise uses the CONFIG above
+   verbatim — the same deployment, the same three tools, the same agent.
+
+   mode: "inherit" runs Frame B in whatever mode CONFIG.mode is set to.
+   Set it to "simulated" to run Frame B from its script while Frame A is live.
+   That is the documented fallback if two live sessions on one page turn out to
+   interfere, and it is also the cheaper way to demo: two live sessions consume
+   two lots of quota.
+   ------------------------------------------------------------------------- */
+const CONFIG_B = {
+  mode: "inherit"                 // "inherit" | "simulated" | "live"
 };
 
 /* Resource names copied out of the console routinely arrive with a leading or
@@ -2965,6 +3237,1064 @@ function boot() {
   }
 }
 
+/* ============================================================================
+   9. FRAME B — the web-widget comparison.
+
+   Everything from here down belongs to the second phone and nothing above it
+   reads any of it. Frame B keeps its own state object (fbState), its own
+   element handles (fbDom) and its own logger (fbLog); it deliberately does not
+   touch `state`, `dom`, `Sheet` or any of Frame A's functions.
+
+   What it does share, on purpose, is the side-effect-free half of the file:
+   CATALOGUE, validate(), RENDERERS and the component build() functions, plus
+   the .genui CSS. That sharing is the point of the comparison — the same
+   component rendered into a different surface.
+   ========================================================================= */
+const fbDom = {
+  viewport:   document.getElementById('fbViewport'),
+  statusBar:  document.getElementById('fbStatusBar'),
+  screenA:    document.getElementById('fbScreenA'),
+  chatBody:   document.getElementById('fbChatBody'),
+  agent:      document.getElementById('fbAgent'),
+  agentStatus:document.getElementById('fbAgentStatus'),
+  thread:     document.getElementById('fbThread'),
+  composer:   document.getElementById('fbComposer'),
+  composerText: document.getElementById('fbComposerText'),
+  composerSend: document.getElementById('fbComposerSend'),
+  cesmHost:   document.getElementById('fbCesmHost'),
+  modeIndicator: document.getElementById('fbModeIndicator'),
+  modeText:   document.getElementById('fbModeText'),
+  btnReplay:  document.getElementById('fbBtnReplay'),
+  endMarker:  document.getElementById('fbEndMarker')
+};
+
+const fbState = {
+  mode: fbResolveMode(),
+  screen: 'messaging',
+  scriptIndex: -1,
+  awaitingCustomer: false,
+  finished: false,
+  connected: false,
+  scriptLive: false,
+  timers: [],
+  cesm: null,
+  entryContext: null,
+  eventsWired: false,
+  toolsRegistered: false,
+  /* Counts that answer the one question a live deployment is needed to settle:
+     do two widgets on one page keep their events apart. */
+  hostEvents: 0,
+  windowEvents: 0,
+  anyWindowEvents: 0,
+  componentCss: '',
+  /* label → phrase, so the interaction return path does not depend on any
+     attribute surviving the widget's sanitiser. */
+  actionMap: {},
+  interactionWired: false,
+  lastTapPhrase: '',
+  lastTapAt: 0
+};
+
+/* Frame B writes into the same panel and the same window.__demoLog array as
+   Frame A, prefixed so the two are never confused. Frame A's own entries are
+   left exactly as they were. */
+function fbLog(kind, label, detail) {
+  return log(kind, '[Frame B] ' + label, detail);
+}
+
+function fbLater(fn, ms) {
+  const id = window.setTimeout(fn, ms);
+  fbState.timers.push(id);
+  return id;
+}
+function fbClearTimers() {
+  for (let i = 0; i < fbState.timers.length; i++) window.clearTimeout(fbState.timers[i]);
+  fbState.timers.length = 0;
+}
+
+function fbUpdateModeIndicator() {
+  const live = fbState.mode === 'live' && !!CONFIG.deploymentId;
+  fbDom.modeText.textContent = live ? 'Live agent' : 'Scripted';
+  fbDom.modeIndicator.setAttribute('data-live', fbState.connected ? 'true' : 'false');
+}
+
+/* ---- 9.1 The messaging conversation --------------------------------------
+   Frame B's own instance of the same opening exchange. It diverges only at the
+   last card: Frame A offers a way out of messaging, Frame B offers to carry on
+   in it. */
+const FB_CHAT_SCRIPT = [
+  { who: 'bot', text: "Hi, you’re through to O2. What can I help with today?", time: '09:39' },
+  { who: 'customer', text: 'I need to have a look at my bill', time: '09:40' },
+  { who: 'bot', text: 'No problem — our AI assistant can go through it with you right here.', time: '09:40' },
+  { who: 'bot', text: "It’ll pick up what you’ve already told me, so there’s nothing to repeat.", time: '09:40' },
+  { who: 'card', title: 'Continue with the AI assistant', sub: 'Stays in this conversation', button: 'Continue in chat', time: '09:41' }
+];
+
+function fbPlayChatScript() {
+  clear(fbDom.chatBody);
+  let t = 300;
+  for (let i = 0; i < FB_CHAT_SCRIPT.length; i++) {
+    const step = FB_CHAT_SCRIPT[i];
+    if (step.who === 'customer') {
+      fbLater(fbMakeCustomerMessage(step), t);
+      t += 450;
+    } else {
+      fbLater(fbShowChatTyping, t);
+      t += 600;
+      fbLater(fbMakeBotMessage(step), t);
+      t += 450;
+    }
+  }
+}
+
+function fbShowChatTyping() {
+  fbRemoveChatTyping();
+  fbDom.chatBody.appendChild(el('div', {
+    className: 'typing', attrs: { id: 'fbChatTyping', 'aria-hidden': 'true' }
+  }, [el('span'), el('span'), el('span')]));
+  fbDom.chatBody.scrollTop = fbDom.chatBody.scrollHeight;
+}
+function fbRemoveChatTyping() {
+  const t = document.getElementById('fbChatTyping');
+  if (t) t.remove();
+}
+
+function fbMakeCustomerMessage(step) {
+  return function () {
+    fbDom.chatBody.appendChild(el('div', { className: 'msg from-customer' }, [
+      el('p', { className: 'msg-bubble', text: step.text }),
+      el('p', { className: 'msg-time', text: step.time })
+    ]));
+    fbDom.chatBody.scrollTop = fbDom.chatBody.scrollHeight;
+  };
+}
+
+function fbMakeBotMessage(step) {
+  return function () {
+    fbRemoveChatTyping();
+    if (step.who === 'card') {
+      fbDom.chatBody.appendChild(el('div', { className: 'deeplink-card' }, [
+        el('h4', { text: step.title }),
+        el('p', { text: step.sub }),
+        el('button', {
+          className: 'btn-primary',
+          text: step.button,
+          attrs: { type: 'button', id: 'fbHandoverBtn' },
+          on: { click: fbOnHandover }
+        }),
+        el('p', { className: 'msg-time', text: step.time, style: { 'margin-top': '8px' } })
+      ]));
+    } else {
+      fbDom.chatBody.appendChild(el('div', { className: 'msg from-bot' }, [
+        el('p', { className: 'msg-bubble', text: step.text }),
+        el('p', { className: 'msg-time', text: step.time })
+      ]));
+    }
+    fbDom.chatBody.scrollTop = fbDom.chatBody.scrollHeight;
+  };
+}
+
+/* ---- 9.2 The handover ------------------------------------------------------
+   The messaging window is replaced where it stands. Nothing navigates, no app
+   opens: the same rectangle becomes the agent. */
+function fbGoToAgent() {
+  if (fbState.screen === 'agent') return;
+  fbState.screen = 'agent';
+  fbDom.screenA.classList.add('is-gone');
+  fbDom.agent.classList.add('is-shown');
+  fbDom.statusBar.classList.add('on-dark');
+  fbLog('state', 'messaging window replaced by the agent surface');
+}
+
+function fbOnHandover() {
+  const ctx = fbBuildEntryContext();
+  fbLog('state', 'handover pressed', ctx);
+  fbGoToAgent();
+  fbStartAgent(ctx);
+}
+
+/* Frame B's own entry context. Same shape as Frame A's, but it names the
+   channel and surface it actually arrives on. */
+function fbBuildEntryContext(extra) {
+  const ctx = {
+    entry_point: 'messaging_inline_handover',
+    channel: 'web_chat',
+    nlu_intent: 'Billing',
+    customer_utterance: 'I need to have a look at my bill',
+    surface: 'web_chat_inline',
+    bill_period: FIXTURE.bill.period,
+    demo: true
+  };
+  if (extra) { for (const k in extra) ctx[k] = extra[k]; }
+  return ctx;
+}
+
+function fbStartAgent(ctx) {
+  if (fbState.mode === 'live' && CONFIG.deploymentId) {
+    fbStartLiveSession(ctx);
+  } else {
+    if (fbState.mode === 'live' && !CONFIG.deploymentId) {
+      fbLog('error', 'CONFIG.mode is "live" but deploymentId is empty — running the scripted sequence instead');
+    }
+    fbStartScript();
+  }
+  fbUpdateModeIndicator();
+}
+
+/* ---- 9.3 The transcript ----------------------------------------------------
+   Three kinds of turn go into the thread: an agent bubble, a customer bubble
+   and a component. The component is a message in its own right, not something
+   inside a bubble. */
+function fbAppendAgentText(text) {
+  const node = el('div', { className: 'msg from-bot' }, [
+    el('p', { className: 'msg-bubble', text: text })
+  ]);
+  fbDom.thread.appendChild(node);
+  fbScrollThread();
+  return node;
+}
+
+function fbAppendCustomerText(text) {
+  const node = el('div', { className: 'msg from-customer' }, [
+    el('p', { className: 'msg-bubble', text: text })
+  ]);
+  fbDom.thread.appendChild(node);
+  fbScrollThread();
+  return node;
+}
+
+function fbAppendSystem(text) {
+  fbDom.thread.appendChild(el('p', { className: 'fb-sys', text: text }));
+  fbScrollThread();
+}
+
+function fbShowTyping() {
+  fbHideTyping();
+  fbDom.thread.appendChild(el('div', {
+    className: 'typing', attrs: { id: 'fbTyping', 'aria-hidden': 'true' }
+  }, [el('span'), el('span'), el('span')]));
+  fbScrollThread();
+}
+function fbHideTyping() {
+  const t = document.getElementById('fbTyping');
+  if (t) t.remove();
+}
+
+function fbScrollThread() {
+  fbDom.thread.scrollTop = fbDom.thread.scrollHeight;
+}
+
+/* The shared builders stamp id="sheetHeading" on their title element so Frame
+   A's sheet can move focus to it. In a transcript there is nothing to move
+   focus to, and a second copy of the id on the page would be invalid, so Frame
+   B strips it from every component it renders. */
+function fbAdoptComponent(node) {
+  const h = node.querySelector('#sheetHeading');
+  if (h) { h.removeAttribute('id'); h.removeAttribute('tabindex'); }
+  return node;
+}
+
+/* Frame B's own renderer contract. Same validation and the same build
+   functions as Frame A — only the destination differs: the transcript rather
+   than the slide-out. */
+function fbRenderComponent(args) {
+  args = args || {};
+  fbLog('tool', 'render_genui_component called', args);
+
+  const name = args.component_name;
+  let payload = args.component_json;
+
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch (err) {
+      const result = { status: 'INVALID', errors: ['field component_json: could not be parsed as JSON — ' + err.message] };
+      fbLog('error', 'render rejected: component_json is not valid JSON', result);
+      return result;
+    }
+  }
+
+  const entry = RENDERERS[name];
+  if (!entry) {
+    const result = {
+      status: 'INVALID',
+      errors: ['unknown component: ' + String(name)],
+      available: componentNames()
+    };
+    fbLog('error', 'render rejected: unknown component', result);
+    return result;
+  }
+
+  const descriptor = CATALOGUE.components.filter(function (c) { return c.name === name; })[0];
+  const errors = [];
+  validate(payload, descriptor.schema, '<root>', errors);
+  if (!errors.length && entry.check) Array.prototype.push.apply(errors, entry.check(payload));
+
+  if (errors.length) {
+    const result = { status: 'INVALID', errors: errors };
+    fbLog('error', 'render rejected: ' + name + ' failed validation', result);
+    return result;
+  }
+
+  let node;
+  try {
+    node = fbAdoptComponent(entry.build(payload));
+  } catch (err) {
+    const result = { status: 'INVALID', errors: ['field <root>: the payload validated but could not be rendered — ' + err.message] };
+    fbLog('error', 'render failed while building ' + name, result);
+    return result;
+  }
+
+  fbInsertComponent(name, node);
+  fbLog('render', 'rendered ' + name + ' inline', { component: name });
+  /* Fire and forget, exactly as Frame A does. A tap comes back later as an
+     ordinary user turn. */
+  return { status: 'RENDERED', component: name };
+}
+
+/* In scripted mode the built node goes straight into the thread. */
+function fbInsertComponent(name, node) {
+  fbDom.thread.appendChild(el('div', {
+    className: 'fb-card', attrs: { 'data-component': name }
+  }, [node]));
+  fbScrollThread();
+}
+
+/* Frame B's surface has no slide-out, so there is nothing for the agent to
+   close. The tool stays registered so the agent needs no change. */
+function fbCloseSurface() {
+  fbLog('tool', 'close_genui_surface called — no-op, components live in the transcript');
+  return { status: 'CLOSED' };
+}
+
+/* The catalogue is identical but for the surface it declares, which is the one
+   thing the agent can usefully know about where its output lands. */
+function fbGetCatalog() {
+  const catalogue = {
+    version: CATALOGUE.version,
+    surface: 'web_chat_inline',
+    components: CATALOGUE.components
+  };
+  fbLog('tool', 'get_genui_catalog called', { components: componentNames(), surface: catalogue.surface });
+  return catalogue;
+}
+
+/* ---- 9.4 Scripted mode -----------------------------------------------------
+   The same conversation as Frame A, written for text rather than speech: the
+   agent can use numerals and be terser, because nothing is being read aloud. */
+const FB_SCRIPT = [
+  { who: 'agent', text: 'Hi — I can help with your bill. Which one do you need: your most recent bill, or an earlier one?' },
+  { who: 'customer', text: "Last month’s" },
+  { who: 'agent',
+    text: "Here’s your June bill. It’s £48.50, due on the 18th, and it hasn’t been taken yet — £9.50 more than May, and that whole difference is out-of-plan charges.",
+    render: 'bill_summary_card' },
+  { who: 'customer', text: "I don’t recognise that charge for going past my data allowance" },
+  { who: 'agent',
+    text: "That’s extra data. Your plan includes 30GB and you used 34.75GB — you went past it on Friday 19 June. Anything over is £2.00 a gigabyte, so £9.50.",
+    render: 'usage_allowance_card' }
+];
+
+/* Reading is faster than listening, so the pause between turns is shorter than
+   Frame A's spoken equivalent. That difference is part of the comparison. */
+function fbReadDuration(text) {
+  const words = text.split(/\s+/).length;
+  return Math.max(900, Math.round((words / 22) * 900));
+}
+
+function fbStartScript() {
+  fbState.scriptLive = true;
+  fbState.scriptIndex = -1;
+  fbState.finished = false;
+  fbDom.endMarker.classList.remove('is-visible');
+  fbDom.btnReplay.classList.remove('is-emphasised');
+  clear(fbDom.thread);
+  fbAppendSystem('Connected to the O2 AI assistant. It already has what you told us.');
+  fbLog('state', 'scripted sequence started');
+  fbLater(fbScriptNext, 700);
+}
+
+function fbScriptNext() {
+  fbState.scriptIndex++;
+  const step = FB_SCRIPT[fbState.scriptIndex];
+  if (!step) { fbEndDemo(); return; }
+  if (step.who === 'agent') fbPlayAgentTurn(step);
+  else fbLog('error', 'script desynchronised at step ' + fbState.scriptIndex);
+}
+
+function fbPlayAgentTurn(step) {
+  fbState.awaitingCustomer = false;
+  fbArmComposer(null);
+  fbShowTyping();
+
+  fbLater(function () {
+    fbHideTyping();
+    fbAppendAgentText(step.text);
+
+    if (step.render) {
+      fbLater(function () {
+        fbRenderComponent({ component_name: step.render, component_json: PAYLOADS[step.render]() });
+      }, 380);
+    }
+
+    fbLater(function () {
+      const upcoming = FB_SCRIPT[fbState.scriptIndex + 1];
+      if (!upcoming) { fbEndDemo(); return; }
+      fbState.scriptIndex++;
+      fbState.awaitingCustomer = true;
+      fbArmComposer(upcoming.text);
+    }, step.render ? 900 : 400);
+  }, fbReadDuration(step.text));
+}
+
+/* Loads the customer's next line into the composer as a draft. Passing null
+   disarms it. */
+function fbArmComposer(text) {
+  if (text) {
+    fbDom.composerText.textContent = text;
+    fbDom.composer.classList.add('is-armed');
+    fbDom.composerSend.disabled = false;
+  } else {
+    fbDom.composerText.textContent = 'Message…';
+    fbDom.composer.classList.remove('is-armed');
+    fbDom.composerSend.disabled = true;
+  }
+}
+
+/* Sends the drafted customer turn. `phrase` overrides the scripted line when
+   the customer taps an action inside a rendered component. */
+function fbCustomerTurn(phrase) {
+  if (!fbState.scriptLive) return;
+  const step = FB_SCRIPT[fbState.scriptIndex];
+  if (!fbState.awaitingCustomer || !step || step.who !== 'customer') {
+    if (phrase) fbLog('state', 'off-script tap ignored in scripted mode: ' + phrase);
+    return;
+  }
+  fbState.awaitingCustomer = false;
+  fbArmComposer(null);
+  fbAppendCustomerText(phrase || step.text);
+  fbLater(fbScriptNext, 600);
+}
+
+function fbEndDemo() {
+  fbState.finished = true;
+  fbState.scriptLive = false;
+  fbArmComposer(null);
+  fbDom.endMarker.classList.add('is-visible');
+  fbDom.btnReplay.classList.add('is-emphasised');
+  fbLog('state', 'scripted sequence complete');
+}
+
+/* ---- 9.5 Interaction return path -------------------------------------------
+   The shared build functions wire their action buttons to Frame A's
+   customerIntent(), which drives Frame A's script and Frame A's session. A
+   capture-phase listener on Frame B's thread intercepts the click before it
+   reaches that handler and routes it into Frame B instead. Frame A's builders
+   are left exactly as they are. */
+fbDom.thread.addEventListener('click', function (e) {
+  const target = e.target && e.target.closest ? e.target.closest('[data-send]') : null;
+  if (!target || !fbDom.thread.contains(target)) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const phrase = target.getAttribute('data-send');
+  const id = target.getAttribute('data-action-id') || target.getAttribute('data-period-id') || 'action';
+  fbLog('intent', 'customer intent: ' + phrase, { source: 'component action: ' + id });
+  fbCustomerIntent(phrase);
+}, true);
+
+function fbCustomerIntent(phrase) {
+  if (fbState.mode === 'live' && fbState.cesm && typeof fbState.cesm.sessionInput === 'function') {
+    /* The documented sequence: show the turn in the transcript, then send it.
+       sessionInput on its own does not echo the customer, so without the
+       insertMessage the tap would look like it did nothing. */
+    try {
+      if (typeof fbState.cesm.insertMessage === 'function') {
+        fbState.cesm.insertMessage('USER', { payload: { html: fbEscapeHtml(phrase) } });
+      }
+    } catch (err) {
+      fbLog('error', 'insertMessage(USER) failed', { message: err.message });
+    }
+    try {
+      fbState.cesm.sessionInput(phrase);
+      fbLog('intent', 'sent to the live session: ' + phrase);
+    } catch (err) {
+      fbLog('error', 'sessionInput failed', { message: err.message });
+    }
+    return;
+  }
+  fbCustomerTurn(phrase);
+}
+
+/* The only string this page ever puts into an HTML payload. Everything else
+   reaches the DOM through textContent. */
+function fbEscapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+fbDom.composerSend.addEventListener('click', function () {
+  if (fbState.mode === 'live' && fbState.cesm) {
+    const phrase = fbDom.composerText.textContent;
+    fbArmComposer(null);
+    fbCustomerIntent(phrase);
+    return;
+  }
+  fbCustomerTurn(null);
+});
+
+/* ---- 9.6 Reset ------------------------------------------------------------- */
+function fbReplay() {
+  fbClearTimers();
+  fbTeardownLiveSession();
+
+  fbState.screen = 'messaging';
+  fbState.scriptIndex = -1;
+  fbState.awaitingCustomer = false;
+  fbState.finished = false;
+  fbState.scriptLive = false;
+
+  /* A replay restores the configured mode, so a frame that fell back to its
+     script after a connection failure will try the widget again. */
+  fbState.mode = fbResolveMode();
+  fbState.toolsRegistered = false;
+  fbState.interactionWired = false;
+  fbState.actionMap = {};
+  fbState.lastTapPhrase = '';
+  fbState.lastTapAt = 0;
+
+  fbDom.screenA.classList.remove('is-gone');
+  fbDom.agent.classList.remove('is-shown');
+  fbDom.statusBar.classList.remove('on-dark');
+  fbDom.endMarker.classList.remove('is-visible');
+  fbDom.btnReplay.classList.remove('is-emphasised');
+  clear(fbDom.thread);
+  fbArmComposer(null);
+  fbSetAgentStatus('Connected', true);
+  fbPlayChatScript();
+  fbUpdateModeIndicator();
+  fbLog('state', 'demo reset');
+}
+
+/* ============================================================================
+   9.7 Frame B live.
+
+   The same deployment, the same three tool resource names and the same agent
+   as Frame A. Three things differ, all of them page-side:
+
+   - modality. audio-input-mode="NONE" with audio-output-mode="DISABLED" makes
+     it a text conversation. modality stays "chat"; "call" is documented as
+     incompatible with NONE.
+   - where render_genui_component puts its output: insertMessage into the
+     transcript rather than a slide-out.
+   - what get_genui_catalog declares as its surface.
+
+   No new agent, no new tools, no agent-side change of any kind.
+   ========================================================================= */
+
+/* Frame B's widget is visible, so it needs the opposite of Frame A's CSS:
+   nothing suppressed, just made to fill its container. */
+const FB_WIDGET_CSS = [
+  '.close-button { display: none !important; }',
+  '.voice-assistant-container, .chat-container { position: relative !important; width: 100% !important; height: 100% !important; margin: 0 !important; }',
+  'main { margin: 0 !important; padding: 0 !important; height: 100% !important; }'
+].join('\n');
+
+/* Every ces-* event Frame A listens for on window. Frame B intercepts each of
+   them on its own host and stops it there. */
+const FB_EVENTS = [
+  'ces-messenger-loaded', 'ces-messenger-connected', 'ces-messenger-disconnected',
+  'ces-authentication-error', 'ces-tool-call-received', 'ces-tool-response-sent',
+  'ces-text-received', 'ces-transcript-received', 'ces-user-input-entered'
+];
+
+function fbResolveMode() {
+  const wanted = (CONFIG_B.mode || 'inherit').trim();
+  if (wanted === 'simulated' || wanted === 'live') return wanted;
+  return CONFIG.mode;
+}
+
+function fbStartLiveSession(ctx) {
+  if (fbState.cesm) return;
+  fbState.entryContext = ctx;
+  fbSetAgentStatus('Connecting…', false);
+  loadMessengerScript(function () { fbCreateWidget(ctx); }, function () {
+    fbLog('error', 'ces-messenger script failed to load — falling back to the script');
+    fbFallBackToScript("Couldn’t load the assistant. Running the scripted conversation instead.");
+  });
+}
+
+function fbCreateWidget(ctx) {
+  const line = entryContextLine(ctx);
+  const cesm = document.createElement('ces-messenger');
+  cesm.setAttribute('deployment-id', CONFIG.deploymentId);
+  cesm.setAttribute('token-broker-url', CONFIG.tokenBrokerUrl);
+  cesm.setAttribute('language-code', CONFIG.languageCode || 'en-GB');
+  /* Text only. This is the whole modality difference between the two frames. */
+  cesm.setAttribute('audio-input-mode', 'NONE');
+  cesm.setAttribute('audio-output-mode', 'DISABLED');
+  cesm.setAttribute('modality', 'chat');
+  cesm.setAttribute('size', 'large');
+  cesm.setAttribute('auto-open-chat', 'true');
+  cesm.setAttribute('initial-message', line);
+  cesm.setAttribute('custom-css', FB_WIDGET_CSS + '\n' + fbComponentCss());
+  /* No voice attribute: nothing is spoken on this frame. */
+
+  /* Listeners go on before the element is in the document, so nothing can
+     escape to Frame A's window listeners even on the first event. */
+  fbWireWidgetEvents();
+
+  fbDom.cesmHost.appendChild(cesm);
+  fbState.cesm = cesm;
+  fbDom.agent.classList.add('is-live');
+  fbLog('state', 'ces-messenger created', {
+    initialMessage: line,
+    deploymentId: CONFIG.deploymentId,
+    audioInput: 'NONE', audioOutput: 'DISABLED'
+  });
+
+  if (cesm.shadowRoot) fbOnMessengerLoaded();
+
+  /* Report the one thing that needs a real deployment to settle, without
+     waiting to be asked. Long enough for the connect handshake to have
+     produced some events. */
+  fbLater(fbAuditEventIsolation, 6000);
+}
+
+function fbTeardownLiveSession() {
+  fbDom.agent.classList.remove('is-live');
+  if (!fbState.cesm) return;
+  try { fbState.cesm.remove(); } catch (err) { /* not fatal */ }
+  fbState.cesm = null;
+  fbState.connected = false;
+  clear(fbDom.cesmHost);
+  fbLog('state', 'live session torn down');
+}
+
+/* If the widget cannot be reached, Frame B drops back to its own script rather
+   than showing a dead surface. */
+function fbFallBackToScript(note) {
+  fbTeardownLiveSession();
+  fbState.mode = 'simulated';
+  fbUpdateModeIndicator();
+  fbSetAgentStatus('Scripted', true);
+  fbStartScript();
+  if (note) fbAppendSystem(note);
+}
+
+function fbSetAgentStatus(text, connected) {
+  clear(fbDom.agentStatus);
+  if (connected) fbDom.agentStatus.appendChild(el('span', { className: 'fb-agent-dot', attrs: { 'aria-hidden': 'true' } }));
+  fbDom.agentStatus.appendChild(document.createTextNode(text));
+}
+
+/* ---- 9.8 Events, intercepted at Frame B's host -----------------------------
+   Frame A listens for these on window. If the widget dispatches them on its own
+   element they travel up through this host on the way there, so Frame B handles
+   each one here and calls stopPropagation, and Frame A never sees an event that
+   belongs to Frame B. Frame A's own events do not pass through this host and
+   are unaffected.
+
+   If instead the widget dispatches straight onto window, nothing here fires and
+   the two frames cannot be told apart. fbAuditEventIsolation reports that
+   plainly rather than letting it be discovered as strange behaviour, and
+   CONFIG_B.mode = "simulated" is the fallback. */
+function fbWireWidgetEvents() {
+  if (fbState.eventsWired) return;
+  fbState.eventsWired = true;
+  for (let i = 0; i < FB_EVENTS.length; i++) {
+    (function (name) {
+      fbDom.cesmHost.addEventListener(name, function (e) {
+        e.stopPropagation();
+        fbState.hostEvents++;
+        fbHandleWidgetEvent(name, e);
+      });
+    })(FB_EVENTS[i]);
+  }
+  /* A last-resort net. Two counts, because they mean different things:
+     windowEvents  — reached window still carrying a target inside Frame B, so
+                     it is Frame B's and can at least be labelled as such.
+     anyWindowEvents — reached window at all. If Frame B has a session open and
+                     this is climbing while hostEvents stays at zero, the widget
+                     is dispatching straight onto window and the two frames
+                     cannot be told apart. */
+  for (let i = 0; i < FB_EVENTS.length; i++) {
+    (function (name) {
+      window.addEventListener(name, function (e) {
+        fbState.anyWindowEvents++;
+        if (!fbOwnsEvent(e)) return;
+        fbState.windowEvents++;
+        fbLog('event', name + ' (reached window — see the isolation audit)', detailOf(e));
+      });
+    })(FB_EVENTS[i]);
+  }
+}
+
+function fbOwnsEvent(e) {
+  const t = e && e.target;
+  return !!(t && t.nodeType === 1 && fbDom.cesmHost.contains(t));
+}
+
+function fbHandleWidgetEvent(name, e) {
+  const d = detailOf(e);
+  switch (name) {
+    case 'ces-messenger-loaded':
+      fbLog('event', name, d);
+      fbOnMessengerLoaded();
+      break;
+    case 'ces-messenger-connected':
+      fbLog('event', name, d);
+      fbState.connected = true;
+      fbSetAgentStatus('Connected', true);
+      fbUpdateModeIndicator();
+      break;
+    case 'ces-messenger-disconnected':
+      fbLog('event', name, d);
+      fbState.connected = false;
+      fbSetAgentStatus('Disconnected', false);
+      fbUpdateModeIndicator();
+      break;
+    case 'ces-authentication-error':
+      fbLog('error', name, d);
+      fbFallBackToScript("Couldn’t connect the assistant. Running the scripted conversation instead.");
+      break;
+    case 'ces-tool-call-received':
+      /* Ground truth that a tool fired, and which frame it fired on. */
+      fbLog('tool', name, d);
+      break;
+    default:
+      fbLog('event', name, d);
+  }
+}
+
+/* ---- 9.9 Tool registration -------------------------------------------------
+   The same three resource names as Frame A, registered on Frame B's element
+   and pointed at Frame B's handlers. Registration is per element, so the same
+   name on two elements is two independent registrations. The dual
+   project-number/project-id spelling logic is reused unchanged. */
+function fbOnMessengerLoaded() {
+  const cesm = fbState.cesm;
+  if (!cesm || fbState.toolsRegistered) return;
+  fbState.toolsRegistered = true;
+  fbLog('state', 'ces-messenger-loaded');
+
+  if (typeof cesm.setQueryParameters === 'function' && fbState.entryContext) {
+    try {
+      cesm.setQueryParameters(fbState.entryContext);
+      fbLog('state', 'setQueryParameters sent', fbState.entryContext);
+    } catch (err) {
+      fbLog('error', 'setQueryParameters failed', { message: err.message });
+    }
+  }
+
+  fbRegisterTool('get_genui_catalog', function () { return Promise.resolve(fbGetCatalog()); });
+  fbRegisterTool('render_genui_component', function (args) { return Promise.resolve(fbRenderComponent(args)); });
+  fbRegisterTool('close_genui_surface', function () { return Promise.resolve(fbCloseSurface()); });
+
+  fbWireWidgetInteraction();
+}
+
+function fbRegisterTool(displayName, handler) {
+  const toolName = CONFIG.tools[displayName];
+  if (!toolName) {
+    fbLog('state', 'tool not configured, skipping registration: ' + displayName);
+    return;
+  }
+  const cesm = fbState.cesm;
+  if (!cesm || typeof cesm.registerClientSideFunction !== 'function') {
+    fbLog('error', 'registerClientSideFunction unavailable for ' + displayName);
+    return;
+  }
+  const names = toolNameVariants(toolName);
+  for (let i = 0; i < names.length; i++) {
+    cesm.registerClientSideFunction(
+      { toolName: names[i], toolDisplayName: displayName },
+      function (args) { return handler(args); }
+    );
+  }
+  fbLog('state', 'registered client function ' + displayName, { toolNames: names });
+}
+
+/* ---- 9.10 Getting a component into the widget's transcript ------------------
+   insertMessage takes an HTML string, and that string is parsed inside the
+   widget's shadow root. Two things do not survive the trip and are dealt with
+   here rather than by changing the shared builders:
+
+   - Page CSS does not cross a shadow boundary, so the card rules are harvested
+     from this page's own stylesheet and handed to the widget as custom-css.
+     One source of truth, no duplicated stylesheet.
+   - <use href="#i-calendar"> resolves against the tree it sits in, and the
+     sprite is in the document, not the shadow root. Each <use> is replaced with
+     the symbol's own contents before serialising.
+   ========================================================================= */
+const FB_CSS_KEEP = ['.genui', '.gc-', '.gu-', '.gp-', '.gd-', '.sr-only', '.fb-card'];
+const FB_KEYFRAMES_KEEP = ['msg-in', 'fb-seg-in'];
+
+function fbComponentCss() {
+  if (fbState.componentCss) return fbState.componentCss;
+  const rulesOut = [];
+  let tokens = '';
+
+  for (let i = 0; i < document.styleSheets.length; i++) {
+    let rules;
+    try { rules = document.styleSheets[i].cssRules; } catch (err) { continue; }
+    if (!rules) continue;
+    for (let j = 0; j < rules.length; j++) {
+      const rule = rules[j];
+      if (rule.type === CSSRule.KEYFRAMES_RULE) {
+        if (FB_KEYFRAMES_KEEP.indexOf(rule.name) !== -1) rulesOut.push(rule.cssText);
+        continue;
+      }
+      if (!rule.selectorText) continue;
+      if (rule.selectorText === ':root') { tokens += rule.style.cssText; continue; }
+      for (let k = 0; k < FB_CSS_KEEP.length; k++) {
+        if (rule.selectorText.indexOf(FB_CSS_KEEP[k]) !== -1) { rulesOut.push(rule.cssText); break; }
+      }
+    }
+  }
+
+  /* Custom properties inherit through a shadow boundary, so these would
+     usually resolve anyway. Restating them on the card itself means a component
+     still renders correctly if the widget resets them somewhere above. */
+  if (tokens) rulesOut.unshift('.fb-card{' + tokens + '}');
+  fbState.componentCss = rulesOut.join('\n');
+  fbLog('state', 'harvested component CSS for the widget', {
+    rules: rulesOut.length, bytes: fbState.componentCss.length
+  });
+  return fbState.componentCss;
+}
+
+function fbInlineSprites(node) {
+  const uses = node.querySelectorAll('use');
+  for (let i = 0; i < uses.length; i++) {
+    const use = uses[i];
+    const href = use.getAttribute('href') || use.getAttributeNS(XLINK_NS, 'href') || '';
+    const symbol = href.charAt(0) === '#' ? document.getElementById(href.slice(1)) : null;
+    const svg = use.parentNode;
+    use.remove();
+    if (!symbol || !svg) continue;
+    if (symbol.getAttribute('viewBox')) svg.setAttribute('viewBox', symbol.getAttribute('viewBox'));
+    for (let k = 0; k < symbol.childNodes.length; k++) {
+      svg.appendChild(symbol.childNodes[k].cloneNode(true));
+    }
+  }
+  return node;
+}
+
+/* The interaction return path cannot rely on data-* attributes surviving the
+   widget's sanitiser, so the phrase behind each action is kept here, on the
+   page, keyed by the label the customer sees. Nothing in the injected HTML has
+   to survive except the text. */
+function fbRecordActions(node) {
+  const buttons = node.querySelectorAll('[data-send]');
+  for (let i = 0; i < buttons.length; i++) {
+    const label = (buttons[i].textContent || '').trim();
+    if (label) fbState.actionMap[label] = buttons[i].getAttribute('data-send');
+  }
+}
+
+function fbComponentHtml(name, node) {
+  fbRecordActions(node);
+  const wrapper = el('div', { className: 'fb-card', attrs: { 'data-component': name } },
+    [fbInlineSprites(node)]);
+  return wrapper.outerHTML;
+}
+
+/* In scripted mode the built node goes straight into Frame B's own thread. In
+   live mode it is serialised and handed to the widget, which owns the
+   transcript. */
+function fbInsertComponent(name, node) {
+  if (fbState.mode === 'live' && fbState.cesm && typeof fbState.cesm.insertMessage === 'function') {
+    const html = fbComponentHtml(name, node);
+    try {
+      fbState.cesm.insertMessage('BOT', { payload: { html: html } });
+      fbLog('render', 'insertMessage sent to the widget transcript', { component: name, bytes: html.length });
+      return;
+    } catch (err) {
+      fbLog('error', 'insertMessage failed — falling back to the page-side thread', { message: err.message });
+    }
+  }
+  fbRecordActions(node);
+  fbDom.thread.appendChild(el('div', {
+    className: 'fb-card', attrs: { 'data-component': name }
+  }, [node]));
+  fbScrollThread();
+}
+
+/* ============================================================================
+   9.11 The interaction return path inside the widget.
+
+   A tap on an action inside an injected component has to come back as an
+   ordinary user turn. Two routes are wired, because it is not knowable in
+   advance which of them survives the widget's sanitiser:
+
+   1. registerRichMessageHandler, the documented route, which hands back the
+      clicked element.
+   2. A delegated click listener on the widget's shadow root, matched on the
+      class names the shared builders already emit.
+
+   Both are registered and the second ignores anything the first has just
+   handled, so whichever survives, the tap fires once.
+
+   Neither route relies on data-* attributes surviving. The phrase behind each
+   action is held on the page in fbState.actionMap, keyed by the label the
+   customer reads, and data-send is only consulted if it happens to have
+   survived. Only the visible text has to make it through.
+   ========================================================================= */
+const FB_ACTION_CLASSES = ['gc-action', 'gp-row'];
+
+function fbPhraseFor(node) {
+  if (!node) return '';
+  const attr = node.getAttribute && node.getAttribute('data-send');
+  if (attr) return attr;
+  const label = (node.textContent || '').trim();
+  return fbState.actionMap[label] || '';
+}
+
+function fbActionElementIn(path) {
+  for (let i = 0; i < path.length; i++) {
+    const node = path[i];
+    if (!node || node.nodeType !== 1 || !node.classList) continue;
+    for (let k = 0; k < FB_ACTION_CLASSES.length; k++) {
+      if (node.classList.contains(FB_ACTION_CLASSES[k])) return node;
+    }
+  }
+  return null;
+}
+
+/* Both routes funnel through here, which drops a repeat of the same tap. */
+function fbHandleActionTap(node, via) {
+  const phrase = fbPhraseFor(node);
+  const label = (node && node.textContent || '').trim();
+  if (!phrase) {
+    fbLog('error', 'action tapped but no phrase could be recovered for it', {
+      via: via, label: label, dataSendSurvived: !!(node && node.getAttribute && node.getAttribute('data-send'))
+    });
+    return;
+  }
+  const now = Date.now();
+  if (fbState.lastTapPhrase === phrase && now - fbState.lastTapAt < 700) {
+    fbLog('state', 'duplicate action tap ignored', { via: via, label: label });
+    return;
+  }
+  fbState.lastTapPhrase = phrase;
+  fbState.lastTapAt = now;
+  fbLog('intent', 'customer intent: ' + phrase, {
+    via: via, label: label,
+    recoveredFrom: (node.getAttribute && node.getAttribute('data-send')) ? 'data-send' : 'label lookup'
+  });
+  fbCustomerIntent(phrase);
+}
+
+function fbWireWidgetInteraction() {
+  const cesm = fbState.cesm;
+  if (!cesm || fbState.interactionWired) return;
+
+  const sr = cesm.shadowRoot;
+  if (sr) {
+    sr.addEventListener('click', function (e) {
+      const path = e.composedPath ? e.composedPath() : [e.target];
+      const node = fbActionElementIn(path);
+      if (!node) return;
+      e.preventDefault();
+      fbHandleActionTap(node, 'shadow-root delegate');
+    });
+    fbState.interactionWired = true;
+    fbLog('state', 'interaction: delegated click listener attached to the widget shadow root');
+  } else {
+    fbLog('error', 'interaction: no shadow root, delegated click listener not attached');
+  }
+
+  if (typeof cesm.registerRichMessageHandler === 'function') {
+    try {
+      cesm.registerRichMessageHandler('genui_component', function (message, clickedElement) {
+        const path = clickedElement ? [clickedElement].concat(fbAncestors(clickedElement)) : [];
+        const node = fbActionElementIn(path) || clickedElement;
+        fbHandleActionTap(node, 'registerRichMessageHandler');
+      });
+      fbLog('state', 'interaction: registerRichMessageHandler registered for genui_component');
+    } catch (err) {
+      fbLog('error', 'registerRichMessageHandler failed', { message: err.message });
+    }
+  } else {
+    fbLog('state', 'interaction: registerRichMessageHandler not offered by this widget build — ' +
+      'the delegated listener is the live route');
+  }
+}
+
+function fbAncestors(node) {
+  const out = [];
+  let n = node && node.parentNode;
+  while (n) { out.push(n); n = n.parentNode || n.host; }
+  return out;
+}
+
+/* ---- 9.12 Isolation audit --------------------------------------------------
+   The one thing that cannot be settled without a live deployment: whether two
+   ces-messenger elements on one page keep their events and tool calls apart.
+   Registration is per element, so tool calls should. Events depend on where the
+   widget dispatches them. This reports what actually happened. */
+function fbAuditEventIsolation() {
+  const sessionOpen = !!fbState.cesm;
+  const verdict = {
+    frameBSessionOpen: sessionOpen,
+    caughtAtFrameBsOwnHost: fbState.hostEvents,
+    reachedWindowStillAttributable: fbState.windowEvents,
+    reachedWindowAtAll: fbState.anyWindowEvents,
+    isolated: null
+  };
+
+  if (!sessionOpen) {
+    verdict.isolated = null;
+    fbLog('state', 'isolation audit: Frame B has no live session, nothing to check', verdict);
+    return verdict;
+  }
+
+  if (fbState.hostEvents > 0 && fbState.windowEvents === 0) {
+    verdict.isolated = true;
+    fbLog('state', 'isolation audit: Frame B\'s widget events are caught at its own host and stop there. ' +
+      'Frame A cannot see them.', verdict);
+    return verdict;
+  }
+
+  if (fbState.hostEvents === 0 && fbState.anyWindowEvents > 0) {
+    verdict.isolated = false;
+    fbLog('error', 'isolation audit: the widget dispatches its events straight onto window, where Frame A ' +
+      'also listens, and they carry no target to tell the frames apart. Frame A will react to Frame B\'s ' +
+      'turns. Tool calls are still per element and stay correct. Set CONFIG_B.mode = "simulated" to run ' +
+      'only Frame A live.', verdict);
+    return verdict;
+  }
+
+  if (fbState.hostEvents === 0) {
+    verdict.isolated = null;
+    fbLog('state', 'isolation audit: no widget events seen yet — start the conversation and check again', verdict);
+    return verdict;
+  }
+
+  verdict.isolated = false;
+  fbLog('error', 'isolation audit: Frame B events are reaching window as well as its own host. ' +
+    'Set CONFIG_B.mode = "simulated" to run only Frame A live.', verdict);
+  return verdict;
+}
+
+fbDom.btnReplay.addEventListener('click', fbReplay);
+
+function fbBoot() {
+  fbArmComposer(null);
+  fbPlayChatScript();
+  fbUpdateModeIndicator();
+  fbLog('state', 'frame ready', {
+    mode: fbState.mode,
+    modeSource: CONFIG_B.mode === 'inherit' ? 'inherited from CONFIG.mode' : 'CONFIG_B.mode',
+    surface: 'web_chat_inline',
+    audio: 'input NONE, output DISABLED'
+  });
+  if (fbState.mode === 'live' && state.mode === 'live' && CONFIG.deploymentId) {
+    fbLog('state', 'both frames are live: two sessions against the same deployment, ' +
+      'which is two lots of quota. Set CONFIG_B.mode = "simulated" to run only Frame A live.');
+  }
+}
+
 /* Exposed for console-driven checks during a build or a stakeholder session. */
 window.__demo = {
   renderComponent: renderComponent,
@@ -2978,7 +4308,22 @@ window.__demo = {
   replay: replay
 };
 
+/* Frame B's equivalent, kept separate so a console poke at one frame can never
+   reach into the other. */
+window.__demoB = {
+  renderComponent: fbRenderComponent,
+  closeSurface: fbCloseSurface,
+  getCatalog: fbGetCatalog,
+  componentCss: fbComponentCss,
+  componentHtml: fbComponentHtml,
+  auditIsolation: fbAuditEventIsolation,
+  config: CONFIG_B,
+  state: fbState,
+  replay: fbReplay
+};
+
 boot();
+fbBoot();
 </script>
 </body>
 </html>
