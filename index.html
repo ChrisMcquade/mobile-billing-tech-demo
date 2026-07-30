@@ -750,6 +750,36 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 }
 
 /* ============================================================================
+   10. Start gate.
+   A cover over one phone's viewport that holds everything back until it is
+   pressed. Written against a frame's viewport rather than against Frame B, so
+   it can be dropped onto either phone without rework.
+   ========================================================================= */
+.gate{
+  position:absolute;inset:0;z-index:70;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;padding:32px 26px;text-align:center;
+  background:linear-gradient(165deg,rgba(0,16,87,.96),rgba(0,80,255,.93));
+  color:#fff;
+  transition:opacity 260ms ease,visibility 0s linear 0s;
+}
+.gate.is-gone{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 260ms ease,visibility 0s linear 260ms}
+.gate-eyebrow{
+  font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:rgba(255,255,255,.72);
+}
+.gate-title{font-size:19px;line-height:1.25;font-weight:650;letter-spacing:-.01em;max-width:20ch}
+.gate-body{font-size:13px;line-height:1.5;color:rgba(255,255,255,.9);max-width:30ch}
+.gate-btn{
+  margin-top:6px;padding:12px 26px;border-radius:999px;
+  background:#fff;color:var(--blue-600);font-size:15px;font-weight:700;
+  box-shadow:0 6px 18px rgba(0,0,0,.22);
+  transition:transform 120ms ease,box-shadow 160ms ease;
+}
+.gate-btn:hover{box-shadow:0 8px 22px rgba(0,0,0,.3)}
+.gate-btn:active{transform:scale(.97)}
+
+/* ============================================================================
    9. Frame B — the web-widget comparison.
    Everything here is prefixed fb- and is used only by the second phone. Frame A
    shares none of it. The generative UI cards themselves (.genui and everything
@@ -1418,6 +1448,14 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
               <div class="chat-body" id="fbChatBody" aria-live="polite"></div>
             </div>
 
+            <!-- 10. Start gate. Last in the viewport so it covers everything,
+                 including the status bar. -->
+            <div class="gate" id="fbGate">
+              <p class="gate-eyebrow">Path A · in messaging</p>
+              <p class="gate-title">The customer has messaged O2 about their bill</p>
+              <p class="gate-body">They are about to be handed to the AI assistant, and stay in text the whole way.</p>
+              <button type="button" class="gate-btn" id="fbGateBtn">Start demo</button>
+            </div>
           </div>
         </div>
 
@@ -3542,6 +3580,43 @@ function boot() {
 }
 
 /* ============================================================================
+   10. Start gate — a small reusable piece, scoped to one frame.
+
+   Holds a frame back until it is pressed: nothing scripted runs, no timers
+   are armed, and no widget session is opened, because the frame's own start
+   path is simply not called until then. Deliberately not tied to Frame B —
+   makeStartGate takes the gate element and what to run, so Frame A could take
+   one later without rework. Frame A does not need one today: pressing its
+   assistant control is already a deliberate start.
+   ========================================================================= */
+function makeStartGate(gateEl, btnEl, onStart, label) {
+  if (!gateEl || !btnEl) return null;
+  const gate = {
+    isOpen: true,
+    show: function () {
+      gate.isOpen = true;
+      gateEl.classList.remove('is-gone');
+      gateEl.removeAttribute('aria-hidden');
+      btnEl.disabled = false;
+    },
+    dismiss: function () {
+      if (!gate.isOpen) return;
+      gate.isOpen = false;
+      gateEl.classList.add('is-gone');
+      gateEl.setAttribute('aria-hidden', 'true');
+      btnEl.disabled = true;
+    }
+  };
+  btnEl.addEventListener('click', function () {
+    if (!gate.isOpen) return;
+    gate.dismiss();
+    log('state', (label || 'frame') + ': start gate pressed');
+    onStart();
+  });
+  return gate;
+}
+
+/* ============================================================================
    9. FRAME B — the web-widget comparison.
 
    Everything from here down belongs to the second phone and nothing above it
@@ -3566,6 +3641,8 @@ const fbDom = {
   composerText: document.getElementById('fbComposerText'),
   composerSend: document.getElementById('fbComposerSend'),
   cesmHost:   document.getElementById('fbCesmHost'),
+  gate:       document.getElementById('fbGate'),
+  gateBtn:    document.getElementById('fbGateBtn'),
   modeIndicator: document.getElementById('fbModeIndicator'),
   modeText:   document.getElementById('fbModeText'),
   btnReplay:  document.getElementById('fbBtnReplay'),
@@ -3588,6 +3665,7 @@ const fbState = {
   iframe: null,
   entryContext: null,
   toolsRegistered: false,
+  gate: null,
   iframeEvents: 0,
   sendFailures: 0,
   componentCss: '',
@@ -4104,11 +4182,13 @@ function fbReplay() {
   fbDom.endMarker.classList.remove('is-visible');
   fbDom.btnReplay.classList.remove('is-emphasised');
   clear(fbDom.thread);
+  clear(fbDom.chatBody);
   fbArmComposer(null);
   fbSetAgentStatus('Connected', true);
-  fbPlayChatScript();
+  /* Back behind the gate, not straight into the exchange again. */
+  if (fbState.gate) fbState.gate.show();
   fbUpdateModeIndicator();
-  fbLog('state', 'demo reset');
+  fbLog('state', 'demo reset — waiting on the start gate');
 }
 
 /* ============================================================================
@@ -4829,7 +4909,12 @@ fbDom.btnReplay.addEventListener('click', fbReplay);
 
 function fbBoot() {
   fbArmComposer(null);
-  fbPlayChatScript();
+  /* Nothing plays, no timer is armed and no session is opened until the gate
+     is pressed — fbPlayChatScript is simply not called yet, and the widget is
+     only ever created from the handover press further down that path. */
+  fbState.gate = makeStartGate(fbDom.gate, fbDom.gateBtn, function () {
+    fbPlayChatScript();
+  }, '[Frame B]');
   fbUpdateModeIndicator();
   fbLog('state', 'frame ready', {
     mode: fbState.mode,
