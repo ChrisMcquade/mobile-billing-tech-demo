@@ -694,7 +694,9 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 .gs-note svg{color:var(--amber);flex:0 0 auto}
 
 /* bill_period_selector + charge_detail_card */
-.gp-prompt{font-size:15px;font-weight:600}
+/* Same scale as .gu-title, so the selector's heading reads as a card heading
+   like every other component's. */
+.gp-prompt{font-size:17px;font-weight:650}
 .gp-list{margin-top:12px;border-top:1px solid var(--line)}
 .gp-row{
   display:flex;align-items:center;gap:12px;width:100%;text-align:left;
@@ -820,6 +822,7 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 .fb-card .gu-note{margin-top:6px;line-height:1.35}
 .fb-card .gd-amount{margin-top:6px}
 .fb-card .gd-explain{margin-top:8px;line-height:1.35}
+.fb-card .gp-prompt{font-size:16px}
 .fb-card .gp-list{margin-top:8px}
 .fb-card .gp-row{padding:8px 0}
 /* buildUsageAllowanceCard fills its bar from a requestAnimationFrame closure
@@ -2729,6 +2732,11 @@ function buildEntryContext(entryPoint, extra) {
     customer_utterance: 'I need to have a look at my bill',
     surface: 'bills_home',
     bill_period: FIXTURE.bill.period,
+    /* The platform passes its own current_date, which is real wall-clock time
+       and drifts past the fixture's due date — the agent then reasons about a
+       bill due twelve days ago. Passing the demo's date explicitly pins it. */
+    today: FIXTURE.today.iso,
+    today_label: FIXTURE.today.label,
     demo: true
   };
   if (extra) { for (const k in extra) ctx[k] = extra[k]; }
@@ -2741,6 +2749,7 @@ function entryContextLine(ctx) {
          ' entry_point=' + ctx.entry_point +
          ' intent=' + ctx.nlu_intent +
          ' surface=' + ctx.surface +
+         (ctx.today ? ' today=' + ctx.today : '') +
          (ctx.charge_id ? ' charge_id=' + ctx.charge_id : '') +
          ' said="' + ctx.customer_utterance + '"';
 }
@@ -3740,6 +3749,9 @@ function fbBuildEntryContext(extra) {
     customer_utterance: 'I need to have a look at my bill',
     surface: 'web_chat_inline',
     bill_period: FIXTURE.bill.period,
+    /* See Frame A: pins the demo's date over the platform's current_date. */
+    today: FIXTURE.today.iso,
+    today_label: FIXTURE.today.label,
     demo: true
   };
   if (extra) { for (const k in extra) ctx[k] = extra[k]; }
@@ -4310,7 +4322,9 @@ function fbCreateIframe(ctx) {
   cesm.setAttribute('chat-title', 'O2 AI assistant');
   cesm.setAttribute('input-placeholder-text', 'Message…');
   cesm.setAttribute('initial-message', line);
-  cesm.setAttribute('custom-css', fbWidgetCss() + '\n' + fbComponentCss());
+  /* Order matters: widget chrome, then the harvested card rules, then the
+     transcript-inline overrides last so they win. */
+  cesm.setAttribute('custom-css', fbWidgetCss() + '\n' + fbComponentCss() + '\n' + FB_INLINE_OVERRIDES);
   /* No voice attribute: nothing is spoken on this frame. */
   idoc.body.appendChild(cesm);
 
@@ -4503,7 +4517,63 @@ function fbRegisterTool(displayName, handler) {
      the sprite is in this one. Each <use> is replaced with the symbol's own
      contents before serialising.
    ========================================================================= */
-const FB_CSS_KEEP = ['.genui', '.gc-', '.gu-', '.gp-', '.gd-', '.sr-only', '.fb-card'];
+/* ---- Transcript-inline overrides -------------------------------------------
+   Appended AFTER the harvested rules, never merged into them, so Frame A's
+   slide-out keeps exactly the CSS it was designed with.
+
+   The cause of the clipping, established by measuring rather than guessing:
+   box-sizing is not inherited into the widget. The page sets it with a `*`
+   reset, and `*` matches nothing in FB_CSS_KEEP, so it is never harvested —
+   everything inside an injected card computed as content-box, padding added
+   to width instead of being contained, and the transcript overflowed by 30px.
+   Every rule below is scoped to .fb-card, so ordinary chat messages are
+   untouched. */
+const FB_INLINE_OVERRIDES = [
+  /* The page's ELEMENT resets are not harvested either — the harvester keeps
+     rules whose selector matches a component class, and `*`, `button`, `dl`
+     and friends match none of them. Inside the widget those elements
+     therefore keep UA defaults, which is why bill_period_selector rendered as
+     a bordered grey table: its rows are <button>s, and an unreset button has
+     a ButtonFace background and an outset border. The usage table's <dl>/<dd>
+     picked up UA margins the same way. Re-emit the page's base reset, scoped
+     to the card. */
+  /* :where() keeps these at the same specificity as the page's own reset —
+     element-level — so the harvested component classes still win over them,
+     exactly as they do on the page. Written with !important they would
+     flatten .gc-action's pill styling instead. */
+  ':where(.fb-card), :where(.fb-card) *, :where(.fb-card) *::before, :where(.fb-card) *::after { box-sizing: border-box; }',
+  ':where(.fb-card) :is(h1, h2, h3, h4, p, ul, ol, figure, dl, dd) { margin: 0; }',
+  ':where(.fb-card) ul { padding: 0; list-style: none; }',
+  ':where(.fb-card) button { font: inherit; color: inherit; background: none; border: 0;' +
+    ' padding: 0; cursor: pointer; text-align: left; }',
+  ':where(.fb-card) svg { display: block; }',
+
+  /* The card fills its bubble and can never exceed it, whatever width the
+     sheet context implied. */
+  '.fb-card { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }',
+  '.fb-card .genui { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }',
+  '.fb-card .genui > * { max-width: 100% !important; }',
+
+  /* A flex child defaults to min-width:auto, which lets a long label shove the
+     amount column off the right edge instead of wrapping. */
+  '.fb-card .gc-line, .fb-card .gp-row, .fb-card .gu-tr { min-width: 0 !important; }',
+  '.fb-card .gc-line-text, .fb-card .gp-label, .fb-card .gu-tr dt { min-width: 0 !important; overflow-wrap: anywhere; }',
+  '.fb-card .gc-line-label, .fb-card .gc-line-sub { overflow-wrap: anywhere; }',
+
+  /* Amounts are the one thing that must never wrap or clip. */
+  '.fb-card .gc-line-amount, .fb-card .gp-amount, .fb-card .gu-tr dd { flex: 0 0 auto !important; white-space: nowrap; }',
+
+  /* Chips wrap onto the next row rather than running off the edge. */
+  '.fb-card .gs-amounts, .fb-card .gc-actions { flex-wrap: wrap !important; }',
+
+  /* A component message gets the full bubble width. A bill breakdown is a data
+     display, not a sentence, so it is not held to the text bubble's measure —
+     and with no bubble padding the card can use all of it. */
+  'main ul li:has(.fb-card) { padding: 0 !important; width: auto !important; max-width: 100% !important;' +
+    ' margin-left: 8px !important; margin-right: 8px !important; }'
+].join('\n');
+
+const FB_CSS_KEEP = ['.genui', '.gc-', '.gu-', '.gp-', '.gd-', '.gs-', '.sr-only', '.fb-card'];
 const FB_KEYFRAMES_KEEP = ['msg-in', 'fb-seg-in'];
 
 function fbComponentCss() {

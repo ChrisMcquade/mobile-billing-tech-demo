@@ -130,6 +130,34 @@ Carries the reactive remediation moment, and is a P1 journey in the production b
 
 Amounts are strings with two decimals, per the house convention, so they validate against the same `MONEY` pattern as every other amount on the page.
 
+## Rendering components inside the transcript
+
+Frame B injects components into the widget's shadow DOM, and the page's CSS does not follow them there. The card rules are harvested from this page's own stylesheet at runtime and handed over as `custom-css` — but **the harvester keeps rules whose selector mentions a component class, and that is not the whole story of how the page styles anything.**
+
+Two defects came from that gap, both reproduced before being fixed:
+
+### `bill_period_selector` rendered as a bordered grey table
+
+Not a stub, and not a `<table>` — `buildBillPeriodSelector` builds divs and buttons and already used the shared classes. The rows are `<button>` elements, and the page's element reset (`button { background: none; border: 0; padding: 0 }`) has the selector `button`, which mentions no component class and so was never harvested. Inside the widget the buttons kept their UA defaults: `ButtonFace` grey, an outset border, square corners. Hence "hard black borders, alternating grey and white rows".
+
+The page's base reset is now re-emitted into the widget, scoped to the card. It is written with `:where()` so it carries the same element-level specificity it has on the page — with `!important` it would flatten `.gc-action`'s pill styling instead of sitting under it, which is exactly what happened on the first attempt.
+
+The same omission was giving the usage table's `<dl>`/`<dd>` their UA margins.
+
+### `spend_cap_card` was completely unstyled
+
+`FB_CSS_KEEP` listed `.genui, .gc-, .gu-, .gp-, .gd-, .sr-only, .fb-card`. When `spend_cap_card` was added its rules were all `.gs-`, which was never added to the list, so none of its CSS reached the widget — the amount chips rendered as bare inline text and ran off the edge. `.gs-` is now in the list.
+
+> **Adding a component means adding its class prefix to `FB_CSS_KEEP`.** Nothing catches this automatically: the component renders correctly in Frame A's slide-out and silently unstyled in Frame B.
+
+### Width containment
+
+An override stylesheet is appended **after** the harvested rules — never merged into them, so Frame A's slide-out keeps exactly the CSS it was designed with. Every rule is scoped to `.fb-card`, so ordinary chat messages are untouched. It sets `box-sizing`, holds the card to `width: 100%; max-width: 100%; min-width: 0`, gives flex children `min-width: 0` so a long label wraps instead of shoving the amount column off the edge, keeps amounts on one line, wraps chip rows, and lets a component message use the full bubble width with no bubble padding — a bill breakdown is a data display, not a sentence.
+
+Honest note on one of these: the `box-sizing` rule could not be shown to be load-bearing. The widget's own stylesheet does `:host { box-sizing: border-box }` followed by `*, *::before, *::after { box-sizing: inherit }`, so injected content already computes as `border-box`. An earlier measurement suggested otherwise, but that was a gap in the stand-in widget used for testing, not in the real one. The rule is kept as cheap insurance against a build that changes it; it is not the fix for anything currently observed.
+
+All five components were measured at a 390px iframe: nothing clipped, no horizontal overflow in the transcript, every amount fully visible.
+
 ## One agent serves both frames
 
 **No second agent, no second deployment, no extra tools and no agent-side change of any kind.** Both frames run against the same `deploymentId` and register the same three tool resource names. Everything that differs between the two patterns is a decision this page makes.
@@ -281,9 +309,30 @@ Combine them: `index.html?debug&phase2`.
 
 The interference mechanisms, the sanitiser allowlist, the `safe`/`templateId` contract and the event dispatch target were read from the widget's public source (`GoogleCloudPlatform/ces-messenger` — `src/BidiWidget.ce.vue`, `src/bidi/*.js`) and cross-checked against a HAR capture of a real broken two-frame session, which also showed the full tool loop working over the text channel (at the time via `get_genui_catalog`, since removed). The gstatic bundle is built from that repository; if a future build changes these internals, the isolation audit and the degraded tap route are the designed safety nets.
 
+## Two things that are not client-side defects
+
+### The agent's own line copy
+
+A live trace showed the Discounts line reading "Loyalty rewarded Standard discounts". Nothing in this page joins those strings: `buildBillSummaryCard` renders `line.sub` into a single element and never concatenates, and `FIXTURE.bill.breakdown` has `sub: 'Loyalty rewarded'` and nothing else. In live mode the agent composes `component_json` itself, so that doubled sub-label is the agent's own value for the field. It is fixed in the agent instruction, not here.
+
+### Components appearing above the text that introduces them
+
+Not fixable client-side, and not worth fighting. The HAR of a live session shows why:
+
+```
+turn 1: ["toolCalls"]  turnCompleted=true
+turn 2: ["text"]       turnCompleted=true
+```
+
+The platform completes the tool-call turn *before* any text streams. `render_genui_component` therefore fires, and the card is inserted, while the sentence that introduces it does not exist yet. Holding the `insertMessage` until text arrives would mean buffering the card on a guess about whether text is still coming — a timeout in everything but name, and it would strand the card entirely on a turn where the agent renders and says nothing further. Left as is.
+
+The mitigation is in the copy rather than the client: no agent line refers to the component or depends on it having rendered, so a card arriving early reads as the agent putting something up before talking about it, not as a broken sequence.
+
 ## Illustrative data
 
 All figures, the account number, the device and the usage are invented for this demo. Nothing here is O2 pricing, and no real customer data is used. Demo "today" is hard-coded as Tuesday 14 July 2026 so the demo never drifts.
+
+**The demo's date is now passed explicitly in the entry context** (`today` and `today_label`, plus `today=` in the compact hidden-context line both frames send). The platform passes its own `current_date` from real wall-clock time, which had drifted twelve days past the 18 July due date the card displays — so the agent was reasoning about a bill that, by its own sense of today, was overdue. Pinning the date in the entry context was chosen over moving the fixture forward: moving it would mean rewriting every month reference in both scripts and in the spoken copy, and the fixture's internal arithmetic is load-bearing. If you would rather roll the fixture forward instead, `FIXTURE.today`, `FIXTURE.bill.period_label`, `due_date_label` and `previous.period_label` are the four values to change, and every spoken month in `SCRIPT` and `FB_SCRIPT` then has to follow.
 
 Every figure the agent speaks traces to `FIXTURE`, including the derived ones. The three-part walkthrough decomposes the same total rather than restating it:
 
