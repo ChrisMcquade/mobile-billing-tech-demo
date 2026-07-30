@@ -32,6 +32,104 @@ Two files, no build step: `index.html` (all HTML, CSS and JavaScript) and this R
 
 The two frames are independent. Run them one after another to talk through each journey, or start both and let them play alongside each other.
 
+Agent turns play straight through, including several in a row during the bill walkthrough. It is customer turns that wait for you, in both frames.
+
+## The scripted conversation mirrors the production agent
+
+**This is the question stakeholders ask, so it is worth being blunt about: the scripted conversation is not an idealised version of the journey. It is what the production billing agent build actually does.** Its wording, its structure and the things it deliberately does *not* say are all matched to that build. If the demo looks less slick in places than a sales script would, that is the point — you are watching the behaviour that ships.
+
+Three rules govern it, and all three are easy to break by rewriting a line for flow.
+
+### 1. Components accompany speech, they never replace it
+
+The agent gives the whole explanation aloud, with every figure, exactly as it would if nothing had rendered. The component is drawn alongside to help the customer follow.
+
+No agent line refers to the screen — no "I've put it on your screen", no "as you can see", no "have a look at that" — and nothing the agent says depends on a component having appeared. That matters beyond tidiness: the render call can fail validation, the customer may not be looking, and on a voice call there may be no screen at all. An explanation that leans on the component breaks in all three cases.
+
+This used to be enforced twice over, because `get_genui_catalog` returned `when_to_use` to the agent every session — so an entry reading "use it before explaining anything in speech" taught the substitution model no matter what the instruction said. That entry is corrected, and the tool that exposed it is now removed, so the instruction is the single model-facing source. The corrected wording stays in `CATALOGUE` as documentation.
+
+### 2. No proactive remediation
+
+After explaining a charge the agent closes with "Is there anything else I can help you with?" and offers nothing. No spend cap, no bar, no bolt-on, no mention of preventing future charges.
+
+Remediation appears **only** after the customer asks how to prevent it or expresses surprise. Everything before that point is explanation only.
+
+When it does appear it follows the production SOP's ordering: **a Bolt On first, and a Spend Cap or bar only if the customer asks for one or declines the Bolt On.** The agent will only offer a Bolt On if a tool returns one, so `FIXTURE.boltOn` holds one — a Data Booster, 10GB for £5.00, deliberately large enough to have covered the 4.75GB overage and £4.50 cheaper than the £9.50 it would have replaced, which is the comparison the agent makes. The customer then declines it in favour of stopping the charges outright, and only then does `spend_cap_card` render. Without a Bolt On in the fixture the agent would skip straight to the cap, which is not what the production build does.
+
+This is deliberate and it mirrors the production build. Explaining why a charge happened is not an invitation to fix it; volunteering a remedy pre-empts a decision the customer has not asked to make, and reads as a sales prompt attached to a bill query. The demo shows the restrained version because that is what ships.
+
+### 3. No asking which bill
+
+"My bill" and "last month's bill" mean the most recent period. The agent fetches it and answers. The old script opened by asking which bill the customer wanted — a round trip for information the request already contained.
+
+`bill_period_selector` is now scoped to what it is actually for: an earlier bill the customer has not named, or a comparison between periods. It is in the catalogue and rendersable, but the main path never uses it.
+
+## Optional fields, and the fabrication they were causing
+
+**A required field the tool data cannot always supply is an instruction to fabricate.** A live trace caught this: the agent rendered a `bill_summary_card` with a comparison against **April 2026** — a period that does not exist — at `£0.00` and direction `down`, plus a headline claiming the bill was "same as last month". None of it came from a tool.
+
+The cause was the schema, not the instruction. `comparison` was in `required`, so a period with no previous-period total still had to produce the object. The model cannot return "no comparison" for a required field, so it produced the most plausible-looking one it could. Same for `headline`: a period with nothing notable in it has nothing to headline, but it had to say something.
+
+Four fields are now optional, each with a description telling the model when to omit rather than invent:
+
+| Component | Field | Why it cannot always exist |
+| --- | --- | --- |
+| `bill_summary_card` | `comparison` | The earliest period has no previous period |
+| `bill_summary_card` | `headline` | A period with nothing notable has nothing to say |
+| `usage_allowance_card` | `charge` | A period inside its allowance has no overage charge |
+| `charge_detail_card` | `is_recurring` | A boolean with no "unknown" value — a required one forces a guess the card then states as fact |
+
+The builders omit each cleanly: no empty element, no orphaned border, and no gap where the element would have been. A `usage_allowance_card` with neither `over_by` nor `charge` drops its whole table rather than rendering an empty bordered box, and its bar reads 100% within allowance.
+
+`crossed_on` was already optional and now says so in its description.
+
+**This did not weaken validation.** An incomplete `comparison` — the object present but missing `vs_label` — is still rejected, because the nested `required` inside the property is untouched. Optional means "may be absent entirely", not "may be malformed".
+
+## The catalogue tool is gone
+
+`get_genui_catalog` cost a full LLM round trip on every session plus roughly 1,800 tokens that then sat in context for the rest of it. The model-facing component reference now lives in the **agent instruction** instead.
+
+- Removed from `CONFIG.tools` and from both frames' client-side registrations. `render_genui_component` and `close_genui_surface` are unchanged.
+- `CATALOGUE` stays. It is still what `validate()` checks every render against, and it still backs the playground on `window.__demo`.
+- Because the model never reads it now, `purpose` and `when_to_use` are documentation for whoever reads the file. `CATALOGUE.surface` is informational too — surface reaches the agent as a session variable in the entry context.
+
+> **`CATALOGUE` is now a validation schema only.** The model-facing description of the same components lives in the agent instruction. Change one and you must change the other — nothing in the code will catch a drift between them. There is a comment saying so above the object.
+
+The first client-side tool call in a session is now `render_genui_component`. A render arriving with no preceding catalogue fetch is the design, not a missing call, and the `demo ready` line in `?debug` says so along with the registered tool list.
+
+Note on what `?debug` can show: `ces-tool-call-received` surfaces the calls the widget routes to *this page*. `get_bill_summary` and the other data tools execute agent-side, so they will not appear in the client log — the first entry you see here is the render.
+
+### The next payload reduction, not built yet
+
+The bill breakdown lines currently travel twice per render: once in the `get_bill_summary` response into the model's context, and again echoed back out in `component_json`. Nothing on the client needs the model to relay them — `validate()` checks whatever arrives, and the builders read it straight.
+
+**The fix is to route the payload through the `richContent` envelope from the Python tool**, the way the QuickStart build already does for images: the tool returns the component payload as rich content, the client renders it, and the model never relays the lines at all. That removes the second copy and most of the per-render token cost with it.
+
+Deliberately not built here — it changes the tool contract, and this page is being shown to executives. Noted so the next person does not have to rediscover it.
+
+## The five components
+
+| Component | Purpose | Used in the script |
+| --- | --- | --- |
+| `bill_summary_card` | The whole bill: total, status, movement, breakdown | Yes, during the three-part walkthrough |
+| `usage_allowance_card` | Allowance against usage, the date crossed, how the extra was worked out | Yes, when the customer queries the out-of-plan charge |
+| `charge_detail_card` | One line on its own | Yes, on the Other Charges and Adjustments line |
+| `spend_cap_card` | Cap status, what a cap does, the amounts one can be set to | Yes, after the Bolt On is declined |
+| `bill_period_selector` | A list of recent periods | No — it is for an unnamed earlier bill or a comparison |
+
+### `spend_cap_card`
+
+Carries the reactive remediation moment, and is a P1 journey in the production build's scope. It shows:
+
+- the current status for this account (no cap set);
+- one line on what a spend cap does — a monthly limit on charges outside the plan, and once the limit is reached those extras stop until the next bill;
+- the amounts a cap can be set to: £0.00, £5.00, £10.00, £15.00, £20.00, £30.00, £60.00, £100.00, £200.00, with £0.00 noted as removing the cap;
+- the liability wording — removing a cap makes the customer liable for charges beyond their inclusive allowances.
+
+**Display only, deliberately.** The amounts are rendered as static chips, not buttons: nothing is focusable, nothing carries `data-send`, and there is no return path to the agent. The amounts are *shown*, not offered. Choosing one is a later phase, so the agent offers to pass the customer to a colleague rather than implying a cap can be set from the card. Its status and amount list come from `FIXTURE.spendCap` — nothing is hardcoded in the renderer.
+
+Amounts are strings with two decimals, per the house convention, so they validate against the same `MONEY` pattern as every other amount on the page.
+
 ## One agent serves both frames
 
 **No second agent, no second deployment, no extra tools and no agent-side change of any kind.** Both frames run against the same `deploymentId` and register the same three tool resource names. Everything that differs between the two patterns is a decision this page makes.
@@ -121,7 +219,6 @@ const CONFIG = {
   voice: "en-GB-Chirp3-HD-<name>",   // empty = widget default
   languageCode: "en-GB",
   tools: {
-    get_genui_catalog:      "projects/<p>/locations/eu/apps/<app>/tools/<id>",
     render_genui_component: "projects/<p>/locations/eu/apps/<app>/tools/<id>",
     close_genui_surface:    "projects/<p>/locations/eu/apps/<app>/tools/<id>"
   }
@@ -152,11 +249,10 @@ The `<app>` segment must match across the deployment and all three tools — a t
 
 If you would rather have one canonical form, make the project segment in `tools.*` match the one in `deploymentId` and the second registration stops happening.
 
-### The three client-side functions
+### The two client-side functions
 
-Each frame registers whichever of these are configured, on its own element, on `ces-messenger-loaded`:
+Each frame registers whichever of these are configured, on its own element, on `ces-messenger-loaded`. There were three; `get_genui_catalog` was removed — see above.
 
-- `get_genui_catalog` — returns the catalogue descriptor, including the real JSON schema for every component, so the agent never has to hold the schemas in its instruction. Identical in both frames but for the `surface` field.
 - `render_genui_component` — takes `{ component_name, component_json }`, validates the payload against that component's schema, and either renders it and returns `{ status: "RENDERED", component }` immediately, or returns `{ status: "INVALID", errors: [...] }` with specific, actionable messages so the agent can correct and retry once. The render call returns straight away and never waits on a customer tap; a tap comes back later as an ordinary user turn. Frame A renders into the slide-out; Frame B into the chat transcript.
 - `close_genui_surface` — dismisses the slide-out in Frame A. In Frame B it is a no-op returning `{ status: "CLOSED" }`, because components in a transcript are part of the conversation and are not dismissed.
 
@@ -183,8 +279,19 @@ Combine them: `index.html?debug&phase2`.
 
 ## Provenance of the widget findings
 
-The interference mechanisms, the sanitiser allowlist, the `safe`/`templateId` contract and the event dispatch target were read from the widget's public source (`GoogleCloudPlatform/ces-messenger` — `src/BidiWidget.ce.vue`, `src/bidi/*.js`) and cross-checked against a HAR capture of a real broken two-frame session, which also showed the full tool loop working over the text channel (`get_genui_catalog` called and answered with `surface: "web_chat_inline"`). The gstatic bundle is built from that repository; if a future build changes these internals, the isolation audit and the degraded tap route are the designed safety nets.
+The interference mechanisms, the sanitiser allowlist, the `safe`/`templateId` contract and the event dispatch target were read from the widget's public source (`GoogleCloudPlatform/ces-messenger` — `src/BidiWidget.ce.vue`, `src/bidi/*.js`) and cross-checked against a HAR capture of a real broken two-frame session, which also showed the full tool loop working over the text channel (at the time via `get_genui_catalog`, since removed). The gstatic bundle is built from that repository; if a future build changes these internals, the isolation audit and the degraded tap route are the designed safety nets.
 
 ## Illustrative data
 
 All figures, the account number, the device and the usage are invented for this demo. Nothing here is O2 pricing, and no real customer data is used. Demo "today" is hard-coded as Tuesday 14 July 2026 so the demo never drifts.
+
+Every figure the agent speaks traces to `FIXTURE`, including the derived ones. The three-part walkthrough decomposes the same total rather than restating it:
+
+| Part | Lines | Amount |
+| --- | --- | --- |
+| Device | Device Financing | £6.00 |
+| Tariff | Service Plan(s) £22.00 + Monthly Extras £15.50 + Other Charges and Adjustments £1.50 − Discounts £6.00 | £33.00 |
+| Outside the plan | Outside of Plan Charges | £9.50 |
+| **Total** | | **£48.50** |
+
+The £9.50 out-of-plan charge is also the whole of the £9.50 movement against May's £39.00, which is why the walkthrough ends on it. The usage arithmetic behind it — 34.75GB used against a 30GB allowance, 4.75GB over at £2.00 per GB — is asserted on boot and logged to the debug panel, so a bad edit to `FIXTURE` shows up as an error rather than a plausible-looking wrong number.
