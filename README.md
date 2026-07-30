@@ -32,6 +32,59 @@ Two files, no build step: `index.html` (all HTML, CSS and JavaScript) and this R
 
 The two frames are independent. Run them one after another to talk through each journey, or start both and let them play alongside each other.
 
+Agent turns play straight through, including several in a row during the bill walkthrough. It is customer turns that wait for you, in both frames.
+
+## The scripted conversation mirrors the production agent
+
+**This is the question stakeholders ask, so it is worth being blunt about: the scripted conversation is not an idealised version of the journey. It is what the production billing agent build actually does.** Its wording, its structure and the things it deliberately does *not* say are all matched to that build. If the demo looks less slick in places than a sales script would, that is the point — you are watching the behaviour that ships.
+
+Three rules govern it, and all three are easy to break by rewriting a line for flow.
+
+### 1. Components accompany speech, they never replace it
+
+The agent gives the whole explanation aloud, with every figure, exactly as it would if nothing had rendered. The component is drawn alongside to help the customer follow.
+
+No agent line refers to the screen — no "I've put it on your screen", no "as you can see", no "have a look at that" — and nothing the agent says depends on a component having appeared. That matters beyond tidiness: the render call can fail validation, the customer may not be looking, and on a voice call there may be no screen at all. An explanation that leans on the component breaks in all three cases.
+
+The `when_to_use` text in `CATALOGUE` enforces this at runtime, not just in the instruction. `get_genui_catalog` returns that text to the agent every session, so guidance there competes directly with the agent's own instruction — an entry reading "use it before explaining anything in speech" teaches the substitution model no matter what the instruction says. All five entries now say render *while* explaining, never instead.
+
+### 2. No proactive remediation
+
+After explaining a charge the agent closes with "Is there anything else I can help you with?" and offers nothing. No spend cap, no bar, no bolt-on, no mention of preventing future charges.
+
+Remediation appears **only** after the customer asks how to prevent it or expresses surprise. In the script that is one exchange: the customer says they did not know they would be charged, and the agent responds with `spend_cap_card`. Everything before that point is explanation only.
+
+This is deliberate and it mirrors the production build. Explaining why a charge happened is not an invitation to fix it; volunteering a remedy pre-empts a decision the customer has not asked to make, and reads as a sales prompt attached to a bill query. The demo shows the restrained version because that is what ships.
+
+### 3. No asking which bill
+
+"My bill" and "last month's bill" mean the most recent period. The agent fetches it and answers. The old script opened by asking which bill the customer wanted — a round trip for information the request already contained.
+
+`bill_period_selector` is now scoped to what it is actually for: an earlier bill the customer has not named, or a comparison between periods. It is in the catalogue and rendersable, but the main path never uses it.
+
+## The five components
+
+| Component | Purpose | Used in the script |
+| --- | --- | --- |
+| `bill_summary_card` | The whole bill: total, status, movement, breakdown | Yes, during the three-part walkthrough |
+| `usage_allowance_card` | Allowance against usage, the date crossed, how the extra was worked out | Yes, when the customer queries the out-of-plan charge |
+| `charge_detail_card` | One line on its own | Yes, on the Other Charges and Adjustments line |
+| `spend_cap_card` | Cap status, what a cap does, the amounts one can be set to | Yes, after the customer reacts |
+| `bill_period_selector` | A list of recent periods | No — it is for an unnamed earlier bill or a comparison |
+
+### `spend_cap_card`
+
+Carries the reactive remediation moment, and is a P1 journey in the production build's scope. It shows:
+
+- the current status for this account (no cap set);
+- one line on what a spend cap does — a monthly limit on charges outside the plan, and once the limit is reached those extras stop until the next bill;
+- the amounts a cap can be set to: £0, £5, £10, £15, £20, £30, £60, £100, £200, with £0 noted as removing the cap;
+- the liability wording — removing a cap makes the customer liable for charges beyond their inclusive allowances.
+
+**Display only, deliberately.** The amounts are rendered as static chips, not buttons: nothing is focusable, nothing carries `data-send`, and there is no return path to the agent. The amounts are *shown*, not offered. Choosing one is a later phase, so the agent offers to pass the customer to a colleague rather than implying a cap can be set from the card. Its status and amount list come from `FIXTURE.spendCap` — nothing is hardcoded in the renderer.
+
+Spend cap amounts are whole pounds as the billing system states them (`£5`, not `£5.00`), so they validate against their own `MONEY_WHOLE` pattern rather than bending the `MONEY` one every other amount uses.
+
 ## One agent serves both frames
 
 **No second agent, no second deployment, no extra tools and no agent-side change of any kind.** Both frames run against the same `deploymentId` and register the same three tool resource names. Everything that differs between the two patterns is a decision this page makes.
@@ -188,3 +241,14 @@ The interference mechanisms, the sanitiser allowlist, the `safe`/`templateId` co
 ## Illustrative data
 
 All figures, the account number, the device and the usage are invented for this demo. Nothing here is O2 pricing, and no real customer data is used. Demo "today" is hard-coded as Tuesday 14 July 2026 so the demo never drifts.
+
+Every figure the agent speaks traces to `FIXTURE`, including the derived ones. The three-part walkthrough decomposes the same total rather than restating it:
+
+| Part | Lines | Amount |
+| --- | --- | --- |
+| Device | Device Financing | £6.00 |
+| Tariff | Service Plan(s) £22.00 + Monthly Extras £15.50 + Other Charges and Adjustments £1.50 − Discounts £6.00 | £33.00 |
+| Outside the plan | Outside of Plan Charges | £9.50 |
+| **Total** | | **£48.50** |
+
+The £9.50 out-of-plan charge is also the whole of the £9.50 movement against May's £39.00, which is why the walkthrough ends on it. The usage arithmetic behind it — 34.75GB used against a 30GB allowance, 4.75GB over at £2.00 per GB — is asserted on boot and logged to the debug panel, so a bad edit to `FIXTURE` shows up as an error rather than a plausible-looking wrong number.

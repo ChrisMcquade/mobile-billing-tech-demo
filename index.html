@@ -670,6 +670,29 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 .gu-when svg{color:var(--blue-600);flex:0 0 auto}
 .gu-note{font-size:13px;color:var(--ink-600);margin-top:10px}
 
+/* spend_cap_card. Display only: the amounts are chips, not buttons, and
+   nothing here is focusable or tappable. */
+.gs-status{
+  display:inline-flex;align-items:center;gap:7px;margin-top:10px;
+  padding:5px 11px;border-radius:999px;font-size:13px;font-weight:650;
+  background:var(--blue-050);color:var(--navy-900);
+}
+.gs-status .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-400);flex:0 0 auto}
+.gs-status.is-set .dot{background:var(--green)}
+.gs-explain{font-size:14px;line-height:1.4;margin-top:10px}
+.gs-amounts-label{font-size:12px;font-weight:650;color:var(--ink-600);margin-top:14px}
+.gs-amounts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.gs-amount{
+  padding:6px 12px;border-radius:8px;border:1px solid var(--line);
+  background:var(--page);font-size:13px;font-weight:650;color:var(--ink-900);
+}
+.gs-zero{font-size:12px;color:var(--ink-600);margin-top:8px}
+.gs-note{
+  display:flex;gap:8px;margin-top:12px;padding:10px 12px;border-radius:9px;
+  background:#FCF4E4;font-size:12px;line-height:1.4;color:#5A4300;
+}
+.gs-note svg{color:var(--amber);flex:0 0 auto}
+
 /* bill_period_selector + charge_detail_card */
 .gp-prompt{font-size:15px;font-weight:600}
 .gp-list{margin-top:12px;border-top:1px solid var(--line)}
@@ -972,6 +995,7 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
   <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 19.5L5.5 11H10V4h4v7h4.5L12 19.5Z" fill="currentColor"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.2l12 7.8-12 7.8V4.2Z" fill="currentColor"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.6 4.6L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M12 11.2v5"/><path d="M12 7.9h.01"/></g></symbol>
   <!-- Tab bar and AI bar glyphs carry no presentation attributes so their fill
        and stroke can be driven from CSS state classes. -->
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.4 12 4l8 6.4V19a1.5 1.5 0 0 1-1.5 1.5H15V15H9v5.5H5.5A1.5 1.5 0 0 1 4 19v-8.6Z"/></symbol>
@@ -1069,7 +1093,7 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
     <p class="mechanism">The agent does not generate interface code. It picks a component from a catalogue this page declares and supplies a JSON payload matching that component’s schema. The page renders it with components we own, styled to brand. Anything the agent sends that does not match a schema is rejected and the agent is told why — including the field, the reason, and the list of components it may actually use.</p>
     <div class="table-scroll">
       <table class="catalogue">
-        <caption class="sr-only">The four components the agent may reference, what each shows, and when it is used.</caption>
+        <caption class="sr-only">The five components the agent may reference, what each shows, and when it is used.</caption>
         <thead>
           <tr><th scope="col">Component</th><th scope="col">What it shows</th><th scope="col">When the agent uses it</th></tr>
         </thead>
@@ -1077,22 +1101,27 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
           <tr>
             <td><code>bill_summary_card</code><span class="badge-priority">Scripted</span></td>
             <td>The whole bill in one card: total, whether it has been taken, what moved since last month, and where the money went.</td>
-            <td>The first answer to any “what is my bill” or “why has it changed” question.</td>
+            <td>The first answer to any “what is my bill” or “why has it changed” question, while the agent explains the bill aloud.</td>
           </tr>
           <tr>
             <td><code>usage_allowance_card</code><span class="badge-priority">Scripted</span></td>
             <td>An allowance against what was used, the date it was crossed, and how the extra was calculated.</td>
-            <td>When the customer queries an out-of-plan or over-allowance charge.</td>
+            <td>When the customer queries an out-of-plan or over-allowance charge, while the agent explains it aloud.</td>
+          </tr>
+          <tr>
+            <td><code>charge_detail_card</code><span class="badge-priority">Scripted</span></td>
+            <td>One charge on its own: amount, when it applied, and whether it recurs.</td>
+            <td>When the customer asks about a single line and rendering the whole bill again would be noise.</td>
+          </tr>
+          <tr>
+            <td><code>spend_cap_card</code><span class="badge-priority">Scripted</span></td>
+            <td>The account’s current spend cap status, what a spend cap does, and the amounts one can be set to. Display only.</td>
+            <td>Only once the customer has asked how to prevent a charge, or been surprised by one — never as part of explaining it.</td>
           </tr>
           <tr>
             <td><code>bill_period_selector</code></td>
             <td>A short list of recent bills, each with its amount and status.</td>
-            <td>When it is not clear which bill the customer means.</td>
-          </tr>
-          <tr>
-            <td><code>charge_detail_card</code></td>
-            <td>One charge on its own: amount, when it applied, and whether it recurs.</td>
-            <td>When a single line needs explaining and the full bill would be noise.</td>
+            <td>When the customer wants an earlier bill without naming it, or wants to compare periods. Never for a plain “my bill”.</td>
           </tr>
         </tbody>
       </table>
@@ -1526,6 +1555,16 @@ const FIXTURE = {
     total: '£9.50',
     total_value: 9.50,
     crossed_on: 'Friday 19 June 2026'
+  },
+  /* The spend cap on this account. Display only in this phase — the amounts
+     are shown, not offered, and nothing here is selectable. */
+  spendCap: {
+    is_set: false,
+    status_label: 'No spend cap set',
+    explanation: 'A spend cap sets a monthly limit on charges outside your plan. Once you reach the limit, those extras stop until your next bill.',
+    amounts: ['£0', '£5', '£10', '£15', '£20', '£30', '£60', '£100', '£200'],
+    zero_note: '£0 removes the cap',
+    liability_note: 'Removing a cap makes you liable for charges beyond your inclusive allowances.'
   }
 };
 
@@ -1651,6 +1690,9 @@ function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100
    Patterns are strings so the whole catalogue stays JSON-serialisable.
    ========================================================================= */
 const MONEY = '^−?£\\d{1,3}(,\\d{3})*\\.\\d{2}$';
+/* Spend cap amounts are whole pounds as the billing system states them — £5,
+   not £5.00 — so they need their own pattern rather than bending MONEY. */
+const MONEY_WHOLE = '^£\\d{1,3}(,\\d{3})*$';
 
 const ACTION_SCHEMA = {
   type: 'array', maxItems: 4,
@@ -1672,7 +1714,7 @@ const CATALOGUE = {
     {
       name: 'bill_summary_card',
       purpose: "The whole bill in one card — what it is, whether it’s been taken, what moved since last month, and where the money went.",
-      when_to_use: 'The first answer to any question about what a bill is, or why it has changed. Use it before explaining anything in speech.',
+      when_to_use: 'The first answer to any question about what a bill is, or why it has changed. Render it while you explain the bill aloud, never instead of explaining it. Give the whole explanation in speech, with every figure, exactly as you would if nothing had rendered.',
       schema: {
         type: 'object', additionalProperties: false,
         required: ['period_label', 'total', 'status', 'status_label', 'due_line', 'comparison', 'headline', 'lines'],
@@ -1713,7 +1755,7 @@ const CATALOGUE = {
     {
       name: 'usage_allowance_card',
       purpose: 'Prove an out-of-allowance charge visually — the allowance, the overage, the date it crossed, and how the charge was calculated.',
-      when_to_use: 'When the customer queries an out-of-plan or over-allowance charge, or asks how an extra charge was worked out.',
+      when_to_use: 'When the customer queries an out-of-plan or over-allowance charge, or asks how an extra charge was worked out. Render it while you explain the charge aloud, never instead of explaining it. State the allowance, the amount used, the amount over, the rate and the total in speech. Explaining the charge is not an invitation to offer a remedy for it.',
       schema: {
         type: 'object', additionalProperties: false,
         required: ['title', 'allowance', 'used', 'charge'],
@@ -1763,7 +1805,7 @@ const CATALOGUE = {
     {
       name: 'bill_period_selector',
       purpose: 'A short list of selectable bill periods, each with its amount and status.',
-      when_to_use: 'When it is not clear which bill the customer means and asking in speech alone would be slower.',
+      when_to_use: 'When the customer wants an earlier bill without naming it, or wants to compare periods. Not for a plain request for "my bill" or "last month\'s bill" — that is always the most recent period, which you fetch and answer directly without asking which one they mean.',
       schema: {
         type: 'object', additionalProperties: false,
         required: ['prompt', 'periods'],
@@ -1786,9 +1828,31 @@ const CATALOGUE = {
       }
     },
     {
+      name: 'spend_cap_card',
+      purpose: 'The account\'s current spend cap status, what a spend cap does, and the amounts a spend cap can be set to. Display only — the amounts are shown for reference, not offered for selection.',
+      when_to_use: 'Only after the customer has asked how to prevent a charge, or has expressed surprise at one. Never as part of explaining a charge, and never offered unprompted — explaining why a charge happened is not an invitation to remedy it. Nothing on this component is selectable; setting a cap is handled by a colleague, so offer to pass the customer on rather than implying it can be set here.',
+      schema: {
+        type: 'object', additionalProperties: false,
+        required: ['title', 'status_label', 'is_set', 'explanation', 'amounts'],
+        properties: {
+          title:        { type: 'string', maxLength: 60 },
+          status_label: { type: 'string', maxLength: 60, description: 'e.g. "No spend cap set"' },
+          is_set:       { type: 'boolean', description: 'Whether a cap is currently set on the account.' },
+          explanation:  { type: 'string', maxLength: 240, description: 'One line on what a spend cap does.' },
+          amounts: {
+            type: 'array', minItems: 1, maxItems: 12,
+            items: { type: 'string', pattern: MONEY_WHOLE },
+            description: 'The amounts a cap can be set to, in ascending order. Read-only.'
+          },
+          zero_note: { type: 'string', maxLength: 60, description: 'e.g. "£0 removes the cap"' },
+          note:      { type: 'string', maxLength: 220, description: 'Liability wording shown under the amounts.' }
+        }
+      }
+    },
+    {
       name: 'charge_detail_card',
       purpose: 'One charge examined on its own: amount, when it applied, whether it recurs, and a plain explanation.',
-      when_to_use: 'When a single line needs explaining and putting the whole bill back on screen would be noise.',
+      when_to_use: 'When the customer asks about one line and rendering the whole bill again would be noise. Render it while you explain that line aloud, never instead of explaining it.',
       schema: {
         type: 'object', additionalProperties: false,
         required: ['title', 'amount', 'explanation', 'is_recurring'],
@@ -2091,6 +2155,40 @@ function buildChargeDetailCard(p) {
   return root;
 }
 
+/* Display only, deliberately. The amounts are rendered as static chips rather
+   than buttons: nothing is focusable, nothing carries data-send, and there is
+   no return path to the agent. Choosing a cap is a later phase — here the
+   customer is told what the options are and handed to a colleague. */
+function buildSpendCapCard(p) {
+  const root = el('div', { className: 'genui' });
+  root.appendChild(heading(p.title, 'gu-title'));
+
+  root.appendChild(el('p', { className: 'gs-status' + (p.is_set ? ' is-set' : '') }, [
+    el('span', { className: 'dot', attrs: { 'aria-hidden': 'true' } }),
+    el('span', { text: p.status_label })
+  ]));
+
+  root.appendChild(el('p', { className: 'gs-explain', text: p.explanation }));
+
+  root.appendChild(el('p', { className: 'gs-amounts-label', text: 'A cap can be set to' }));
+  const amounts = el('div', { className: 'gs-amounts', attrs: { role: 'list' } });
+  for (let i = 0; i < p.amounts.length; i++) {
+    amounts.appendChild(el('span', {
+      className: 'gs-amount', text: p.amounts[i], attrs: { role: 'listitem' }
+    }));
+  }
+  root.appendChild(amounts);
+  if (p.zero_note) root.appendChild(el('p', { className: 'gs-zero', text: p.zero_note }));
+
+  if (p.note) {
+    root.appendChild(el('p', { className: 'gs-note' }, [
+      icon('i-info', 15),
+      el('span', { text: p.note })
+    ]));
+  }
+  return root;
+}
+
 function format(n) {
   const v = round2(n);
   return String(v);
@@ -2123,7 +2221,8 @@ const RENDERERS = {
     }
   },
   bill_period_selector: { build: buildBillPeriodSelector },
-  charge_detail_card: { build: buildChargeDetailCard }
+  charge_detail_card: { build: buildChargeDetailCard },
+  spend_cap_card: { build: buildSpendCapCard }
 };
 
 /* ============================================================================
@@ -2642,9 +2741,12 @@ function billSummaryPayload() {
         tone: row.tone
       };
     }),
+    /* Affordances the customer may take, not remedies the agent is offering.
+       The phrases match the scripted customer turns, so tapping one is an
+       alternative to pressing Next rather than a branch off the script. */
     actions: [
-      { id: 'explain_line', label: "What’s this charge?", send: "What’s the out of plan charge?" },
-      { id: 'show_usage', label: 'Show my usage', send: 'Show me my usage' }
+      { id: 'other_charges', label: 'Other charges?', send: 'What are the other charges and adjustments?' },
+      { id: 'out_of_plan', label: 'Out of plan charge?', send: 'And the out of plan charge?' }
     ]
   };
 }
@@ -2658,28 +2760,105 @@ function usagePayload() {
     over_by: { value: u.over, unit: u.unit },
     crossed_on: u.crossed_on,
     charge: { rate: u.rate, total: u.total },
-    note: 'Anything past your allowance is charged separately and shows under Outside of Plan Charges.',
-    actions: [
-      { id: 'spend_cap', label: 'Stop this happening again', send: 'How do I stop this happening again?' }
-    ]
+    note: 'Anything past your allowance is charged separately and shows under Outside of Plan Charges.'
+    /* No actions. Explaining the charge is not an invitation to remedy it —
+       a prevention offer here would be the proactive behaviour the production
+       build removed. It appears only after the customer reacts. */
   };
 }
 
+function spendCapPayload() {
+  const c = FIXTURE.spendCap;
+  return {
+    title: 'Spend cap',
+    status_label: c.status_label,
+    is_set: c.is_set,
+    explanation: c.explanation,
+    amounts: c.amounts.slice(),
+    zero_note: c.zero_note,
+    note: c.liability_note
+  };
+}
+
+/* The Other Charges and Adjustments line, examined on its own. The kind of
+   small line a customer queries where re-rendering the whole bill would be
+   noise. */
+function otherChargesPayload() {
+  const row = FIXTURE.bill.breakdown.filter(function (r) { return r.id === 'other'; })[0];
+  return {
+    title: row.label,
+    amount: row.amount,
+    when: FIXTURE.bill.period_label,
+    explanation: 'Three subscriptions are active on the account: one is free and two are paid. ' +
+      'The two paid ones come to ' + row.amount + ' for ' + FIXTURE.bill.period_label + ', and they recur each month until they are cancelled.',
+    is_recurring: true
+  };
+}
+
+/* ----------------------------------------------------------------------------
+   The scripted conversation mirrors the production billing agent build. Three
+   of its rules are the point of the demo and are easy to break by rewriting a
+   line for flow:
+
+   1. Components accompany speech, they never replace it. Every figure is
+      spoken. No line refers to the screen — no "I've put it up", no "as you
+      can see" — and nothing depends on a component having rendered.
+   2. No proactive remediation. The agent explains the charge and closes with
+      "Is there anything else I can help you with?". It offers no cap, bar or
+      bolt-on until the customer asks how to prevent it or reacts with
+      surprise. Step 11 is the only place remediation appears, and it is a
+      response, not an offer.
+   3. No asking which bill. "My bill" means the most recent period: fetch it
+      and answer.
+
+   Every figure below traces to FIXTURE. The three-part walkthrough decomposes
+   the same £48.50: device £6.00, tariff £22.00 + £15.50 + £1.50 − £6.00 =
+   £33.00, and out-of-plan £9.50.
+   ------------------------------------------------------------------------- */
 const SCRIPT = [
-  { who: 'agent', text: 'Hi — I can help with your bill. Which one do you need? Your most recent bill, or an earlier one?' },
-  { who: 'customer', text: "Last month’s" },
+  /* 1. Opens on the bill directly. No "which one?". */
   { who: 'agent',
-    text: "I’ve put your June bill on your screen. It’s forty-eight pounds fifty, due on the eighteenth, and it hasn’t been taken yet. It’s nine pounds fifty more than May — and that whole difference is out-of-plan charges.",
+    text: "Your June bill is forty-eight pounds fifty. It hasn’t been taken yet — it’s due on the eighteenth of July. Your May bill was thirty-nine pounds, so this one is nine pounds fifty more. Would you like me to take you through it?" },
+  { who: 'customer', text: 'Yes, please' },
+
+  /* 3–5. The three-part walkthrough, rendered alongside and spoken in full. */
+  { who: 'agent',
+    text: "Of course. I’ll go through it in three parts. First, your device. You’re paying six pounds a month for the Apple iPhone 15 Pro Max, 256 gigabytes.",
     render: 'bill_summary_card' },
-  { who: 'customer', text: "I don’t recognise that charge for going past my data allowance" },
   { who: 'agent',
-    text: "That’s extra data. Your plan includes thirty gigabytes and you used just under thirty-five — you went past it on Friday the nineteenth of June. Anything over is two pounds a gigabyte, which came to nine pounds fifty. Would you like me to show you how to stop that happening again?",
-    render: 'usage_allowance_card' }
+    text: "Then your monthly tariff. Your service plans across two active lines come to twenty-two pounds, monthly extras are fifteen pounds fifty, and other charges and adjustments are one pound fifty. Six pounds of discounts come off that, so the tariff side is thirty-three pounds." },
+  { who: 'agent',
+    text: "And on top of that, nine pounds fifty of charges outside your plan. That last part is the whole of the difference from May." },
+
+  /* 6–7. One line examined on its own, without re-rendering the whole bill. */
+  { who: 'customer', text: 'What are the other charges and adjustments?' },
+  { who: 'agent',
+    text: "That’s one pound fifty for subscriptions. There are three active on your account — one is free and two are paid — and the two paid ones come to one pound fifty. They’ll recur each month until they’re cancelled.",
+    render: 'charge_detail_card' },
+
+  /* 8–9. The charge explained in full, then a clean close. Nothing offered. */
+  { who: 'customer', text: 'And the out of plan charge?' },
+  { who: 'agent',
+    text: "That’s your data. Your plan includes thirty gigabytes a month and you used thirty-four point seven five gigabytes, so you were four point seven five gigabytes over. You passed your allowance on Friday the nineteenth of June. Anything beyond it is charged at two pounds a gigabyte, which comes to nine pounds fifty. That falls under allowance exhaustion. Is there anything else I can help you with?",
+    render: 'usage_allowance_card' },
+
+  /* 10–11. The customer reacts. Only now does remediation appear. */
+  { who: 'customer', text: "I didn’t know I’d be charged for that" },
+  { who: 'agent',
+    text: "I understand — it isn’t always obvious you’ve gone past it. You used four point seven five gigabytes beyond your thirty. A spend cap sets a monthly limit on charges outside your plan, and once you reach that limit those extras stop until your next bill. It can be set to nought, five, ten, fifteen, twenty, thirty, sixty, one hundred or two hundred pounds. Would you like me to pass you to a colleague who can set one up?",
+    render: 'spend_cap_card' },
+
+  /* 12–13. Handover, one sentence, stop. */
+  { who: 'customer', text: 'Yes, that would be good' },
+  { who: 'agent',
+    text: "I’ll pass you over now — they’ll get a spend cap set up on your account." }
 ];
 
 const PAYLOADS = {
   bill_summary_card: billSummaryPayload,
-  usage_allowance_card: usagePayload
+  usage_allowance_card: usagePayload,
+  charge_detail_card: otherChargesPayload,
+  spend_cap_card: spendCapPayload
 };
 
 /* 900ms of speaking per ~15 words, minimum 1.4s. */
@@ -2723,6 +2902,10 @@ function playAgentTurn(step) {
     setBarState('idle');
     const upcoming = SCRIPT[state.scriptIndex + 1];
     if (!upcoming) { endDemo(); return; }
+    /* The bill walkthrough is several turns of speech in a row, so consecutive
+       agent turns play straight through. Presenter pacing is unchanged: it is
+       customer turns that wait for Next, and they still do. */
+    if (upcoming.who === 'agent') { scriptNext(); return; }
     state.scriptIndex++;
     state.awaitingCustomer = true;
     setCaption('agent', step.text, true);
@@ -3644,16 +3827,42 @@ function fbGetCatalog() {
 /* ---- 9.4 Scripted mode -----------------------------------------------------
    The same conversation as Frame A, written for text rather than speech: the
    agent can use numerals and be terser, because nothing is being read aloud. */
+/* The same conversation as Frame A, and the same three production rules —
+   components alongside the explanation, no proactive remediation, no asking
+   which bill. Written for text rather than speech, so figures are numerals:
+   reading £48.50 is faster than hearing "forty-eight pounds fifty", and that
+   difference is part of what the two frames are being compared on. */
 const FB_SCRIPT = [
-  { who: 'agent', text: 'Hi — I can help with your bill. Which one do you need: your most recent bill, or an earlier one?' },
-  { who: 'customer', text: "Last month’s" },
   { who: 'agent',
-    text: "Here’s your June bill. It’s £48.50, due on the 18th, and it hasn’t been taken yet — £9.50 more than May, and that whole difference is out-of-plan charges.",
+    text: "Your June bill is £48.50. It hasn’t been taken yet — it’s due on 18 July. Your May bill was £39.00, so this one is £9.50 more. Would you like me to take you through it?" },
+  { who: 'customer', text: 'Yes, please' },
+
+  { who: 'agent',
+    text: "Of course. I’ll go through it in three parts. First, your device: £6.00 a month for the Apple iPhone 15 Pro Max 256GB.",
     render: 'bill_summary_card' },
-  { who: 'customer', text: "I don’t recognise that charge for going past my data allowance" },
   { who: 'agent',
-    text: "That’s extra data. Your plan includes 30GB and you used 34.75GB — you went past it on Friday 19 June. Anything over is £2.00 a gigabyte, so £9.50.",
-    render: 'usage_allowance_card' }
+    text: "Then your monthly tariff. Service plans across two active lines are £22.00, monthly extras £15.50, and other charges and adjustments £1.50. Less £6.00 of discounts, the tariff side is £33.00." },
+  { who: 'agent',
+    text: "And on top of that, £9.50 of charges outside your plan. That last part is the whole of the difference from May." },
+
+  { who: 'customer', text: 'What are the other charges and adjustments?' },
+  { who: 'agent',
+    text: "That’s £1.50 for subscriptions. Three are active on your account — one free and two paid — and the two paid ones come to £1.50. They recur each month until they’re cancelled.",
+    render: 'charge_detail_card' },
+
+  { who: 'customer', text: 'And the out of plan charge?' },
+  { who: 'agent',
+    text: "That’s your data. Your plan includes 30GB a month and you used 34.75GB, so you were 4.75GB over. You passed your allowance on Friday 19 June. Anything beyond it is charged at £2.00 a gigabyte, which comes to £9.50. That falls under allowance exhaustion. Is there anything else I can help you with?",
+    render: 'usage_allowance_card' },
+
+  { who: 'customer', text: "I didn’t know I’d be charged for that" },
+  { who: 'agent',
+    text: "I understand — it isn’t always obvious you’ve gone past it. You used 4.75GB beyond your 30GB. A spend cap sets a monthly limit on charges outside your plan, and once you reach that limit those extras stop until your next bill. It can be set to £0, £5, £10, £15, £20, £30, £60, £100 or £200. Would you like me to pass you to a colleague who can set one up?",
+    render: 'spend_cap_card' },
+
+  { who: 'customer', text: 'Yes, that would be good' },
+  { who: 'agent',
+    text: "I’ll pass you over now — they’ll get a spend cap set up on your account." }
 ];
 
 /* Reading is faster than listening, so the pause between turns is shorter than
@@ -3701,6 +3910,9 @@ function fbPlayAgentTurn(step) {
     fbLater(function () {
       const upcoming = FB_SCRIPT[fbState.scriptIndex + 1];
       if (!upcoming) { fbEndDemo(); return; }
+      /* Consecutive agent turns play straight through, as in Frame A. Only
+         customer turns wait for the presenter to send them. */
+      if (upcoming.who === 'agent') { fbScriptNext(); return; }
       fbState.scriptIndex++;
       fbState.awaitingCustomer = true;
       fbArmComposer(upcoming.text);
@@ -4515,7 +4727,9 @@ window.__demo = {
   fixture: FIXTURE,
   config: CONFIG,
   state: state,
-  replay: replay
+  replay: replay,
+  script: SCRIPT,
+  payloads: PAYLOADS
 };
 
 /* Frame B's equivalent, kept separate so a console poke at one frame can never
