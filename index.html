@@ -1464,8 +1464,10 @@ const CONFIG = {
   tokenBrokerUrl: "MANAGED",
   voice: "en-GB-Chirp3-HD-Algenib",   // empty = widget default
   languageCode: "en-GB",
+  /* get_genui_catalog was removed: it cost a full LLM round trip plus ~1,800
+     tokens that then sat in context for the rest of the session. The
+     component reference the model needs now lives in the agent instruction. */
   tools: {
-    get_genui_catalog:      "projects/project-bf6872b8-4ebc-4a0f-872/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/tools/5a6de834-0c06-45bf-b78d-1382de65dbc5",
     render_genui_component: "projects/project-bf6872b8-4ebc-4a0f-872/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/tools/3a8ab108-87c3-4cd1-8e7f-7ca64ef7b81a",
     close_genui_surface:    "projects/project-bf6872b8-4ebc-4a0f-872/locations/eu/apps/50ff3352-14fc-4892-a54d-f2c57b4269bc/tools/2c180df0-ac13-4dd8-976e-317ba6164bc2"
   }
@@ -1556,14 +1558,30 @@ const FIXTURE = {
     total_value: 9.50,
     crossed_on: 'Friday 19 June 2026'
   },
+  /* The production SOP orders remediation: a Bolt On first, and a Spend Cap or
+     bar only if the customer asks for one or declines the Bolt On. The agent
+     will only offer a Bolt On if a tool returns one, so one lives here.
+     Deliberately large enough to have covered the 4.75GB overage, and cheaper
+     than the £9.50 it would have replaced — which is the point the agent
+     makes. */
+  boltOn: {
+    name: 'Data Booster 10GB',
+    price: '£5.00',
+    price_value: 5.00,
+    includes: '10GB of extra data, for the rest of the billing month',
+    covers_overage: true,
+    /* £9.50 charged vs £5.00 for the bolt on. */
+    saving: '£4.50',
+    saving_value: 4.50
+  },
   /* The spend cap on this account. Display only in this phase — the amounts
      are shown, not offered, and nothing here is selectable. */
   spendCap: {
     is_set: false,
     status_label: 'No spend cap set',
     explanation: 'A spend cap sets a monthly limit on charges outside your plan. Once you reach the limit, those extras stop until your next bill.',
-    amounts: ['£0', '£5', '£10', '£15', '£20', '£30', '£60', '£100', '£200'],
-    zero_note: '£0 removes the cap',
+    amounts: ['£0.00', '£5.00', '£10.00', '£15.00', '£20.00', '£30.00', '£60.00', '£100.00', '£200.00'],
+    zero_note: '£0.00 removes the cap',
     liability_note: 'Removing a cap makes you liable for charges beyond your inclusive allowances.'
   }
 };
@@ -1685,14 +1703,20 @@ function clear(node) {
 function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
 
 /* ============================================================================
-   6. The component catalogue. get_genui_catalog returns this verbatim, real
-   schemas included, so the agent never has to hold them in its instruction.
-   Patterns are strings so the whole catalogue stays JSON-serialisable.
+   6. The component catalogue.
+
+   THIS IS NOW A VALIDATION SCHEMA ONLY. The model never sees it: the
+   get_genui_catalog tool that used to return it was removed, and the
+   model-facing description of the same components lives in the agent
+   instruction instead. Anyone changing a schema here must change the
+   instruction to match — nothing in the code will catch a drift between them.
+
+   What it still does: drives validate() on every render, and backs the
+   playground on window.__demo. purpose and when_to_use are now documentation
+   for whoever reads this file. Patterns are strings so it stays
+   JSON-serialisable.
    ========================================================================= */
 const MONEY = '^−?£\\d{1,3}(,\\d{3})*\\.\\d{2}$';
-/* Spend cap amounts are whole pounds as the billing system states them — £5,
-   not £5.00 — so they need their own pattern rather than bending MONEY. */
-const MONEY_WHOLE = '^£\\d{1,3}(,\\d{3})*$';
 
 const ACTION_SCHEMA = {
   type: 'array', maxItems: 4,
@@ -1709,15 +1733,24 @@ const ACTION_SCHEMA = {
 
 const CATALOGUE = {
   version: '1.0',
+  /* Informational only. The model no longer reads this object at all, and
+     surface reaches the agent as a session variable in the entry context. */
   surface: 'app_voice_slideout',
   components: [
     {
       name: 'bill_summary_card',
-      purpose: "The whole bill in one card — what it is, whether it’s been taken, what moved since last month, and where the money went.",
+      purpose: "The whole bill in one card — what it is, whether it’s been taken, what moved since last month, and where the money went. It renders while the agent explains the bill aloud, never instead of explaining it.",
       when_to_use: 'The first answer to any question about what a bill is, or why it has changed. Render it while you explain the bill aloud, never instead of explaining it. Give the whole explanation in speech, with every figure, exactly as you would if nothing had rendered.',
       schema: {
         type: 'object', additionalProperties: false,
-        required: ['period_label', 'total', 'status', 'status_label', 'due_line', 'comparison', 'headline', 'lines'],
+        /* comparison and headline are deliberately NOT required. A required
+           field the tool data cannot always supply is an instruction to
+           fabricate: a live trace had the model inventing a comparison
+           against April 2026 — a period that does not exist — at £0.00 and
+           "down", with a headline claiming "same as last month", because a
+           period with no previous-period total still had to produce the
+           object. Optional means absent, and absent renders nothing. */
+        required: ['period_label', 'total', 'status', 'status_label', 'due_line', 'lines'],
         properties: {
           period_label: { type: 'string', maxLength: 40, description: 'e.g. "June 2026"' },
           total:        { type: 'string', pattern: MONEY, description: 'UK currency, e.g. "£48.50". Credits use the minus sign U+2212, e.g. "−£6.00".' },
@@ -1727,13 +1760,14 @@ const CATALOGUE = {
           comparison: {
             type: 'object', additionalProperties: false,
             required: ['direction', 'amount', 'vs_label'],
+            description: 'Optional. Send this ONLY when a tool returned a previous-period total. Never infer, estimate or carry one over from an earlier turn: if no previous total came back, omit the field entirely rather than reporting no change.',
             properties: {
               direction: { type: 'string', enum: ['up', 'down'] },
               amount:    { type: 'string', pattern: MONEY },
               vs_label:  { type: 'string', maxLength: 40, description: 'e.g. "vs May 2026"' }
             }
           },
-          headline: { type: 'string', maxLength: 140, description: 'One sentence naming what moved.' },
+          headline: { type: 'string', maxLength: 140, description: 'Optional. One sentence naming what moved. Omit it when nothing notable moved — a period with nothing to say has no headline, and inventing one ("same as last month") is worse than silence.' },
           lines: {
             type: 'array', minItems: 1, maxItems: 10,
             items: {
@@ -1758,7 +1792,10 @@ const CATALOGUE = {
       when_to_use: 'When the customer queries an out-of-plan or over-allowance charge, or asks how an extra charge was worked out. Render it while you explain the charge aloud, never instead of explaining it. State the allowance, the amount used, the amount over, the rate and the total in speech. Explaining the charge is not an invitation to offer a remedy for it.',
       schema: {
         type: 'object', additionalProperties: false,
-        required: ['title', 'allowance', 'used', 'charge'],
+        /* charge is NOT required: a period that stayed inside its allowance
+           has no overage charge to report, and requiring one would force the
+           same fabrication comparison did. */
+        required: ['title', 'allowance', 'used'],
         properties: {
           title: { type: 'string', maxLength: 60 },
           allowance: {
@@ -1788,10 +1825,11 @@ const CATALOGUE = {
             },
             description: 'Must equal used.value minus allowance.value to two decimal places.'
           },
-          crossed_on: { type: 'string', maxLength: 60, description: 'e.g. "Friday 19 June 2026"' },
+          crossed_on: { type: 'string', maxLength: 60, description: 'Optional. The date the allowance was crossed. Omit it when the allowance was not crossed.' },
           charge: {
             type: 'object', additionalProperties: false,
             required: ['rate', 'total'],
+            description: 'Optional. Send this ONLY when a tool returned an overage charge for this period. A period that stayed inside its allowance has no charge — omit the field rather than sending a zero.',
             properties: {
               rate:  { type: 'string', maxLength: 40, description: 'e.g. "£2.00 per GB"' },
               total: { type: 'string', pattern: MONEY }
@@ -1841,7 +1879,7 @@ const CATALOGUE = {
           explanation:  { type: 'string', maxLength: 240, description: 'One line on what a spend cap does.' },
           amounts: {
             type: 'array', minItems: 1, maxItems: 12,
-            items: { type: 'string', pattern: MONEY_WHOLE },
+            items: { type: 'string', pattern: MONEY },
             description: 'The amounts a cap can be set to, in ascending order. Read-only.'
           },
           zero_note: { type: 'string', maxLength: 60, description: 'e.g. "£0 removes the cap"' },
@@ -1855,13 +1893,18 @@ const CATALOGUE = {
       when_to_use: 'When the customer asks about one line and rendering the whole bill again would be noise. Render it while you explain that line aloud, never instead of explaining it.',
       schema: {
         type: 'object', additionalProperties: false,
-        required: ['title', 'amount', 'explanation', 'is_recurring'],
+        /* is_recurring is NOT required, for the same reason comparison is
+           not. It is a boolean, so a required one has no "unknown" value —
+           the model must pick true or false, and the card then asserts
+           "Every month" or "One-off" as fact. If no tool said which, omit it
+           and the chip is not drawn. */
+        required: ['title', 'amount', 'explanation'],
         properties: {
           title:        { type: 'string', maxLength: 60 },
           amount:       { type: 'string', pattern: MONEY },
-          when:         { type: 'string', maxLength: 60 },
+          when:         { type: 'string', maxLength: 60, description: 'Optional. e.g. "June 2026".' },
           explanation:  { type: 'string', maxLength: 400 },
-          is_recurring: { type: 'boolean' },
+          is_recurring: { type: 'boolean', description: 'Optional. Send this ONLY when a tool stated whether the charge recurs. Omit it if unknown — do not guess.' },
           actions: ACTION_SCHEMA
         }
       }
@@ -2021,14 +2064,20 @@ function buildBillSummaryCard(p) {
   root.appendChild(total);
   root.appendChild(el('p', { className: 'gc-due', text: p.due_line }));
 
-  const cmp = p.comparison;
-  root.appendChild(el('span', { className: 'gc-compare ' + cmp.direction }, [
-    icon(cmp.direction === 'down' ? 'i-arrow-down' : 'i-arrow-up', 13),
-    el('span', { text: cmp.amount }),
-    el('span', { text: cmp.vs_label })
-  ]));
+  /* Both optional. A period with no previous-period total has no comparison,
+     and one with nothing notable in it has no headline. Absent means the
+     element is never created — no empty pill, no empty paragraph, and the
+     margins below it close up rather than leaving a gap. */
+  if (p.comparison) {
+    const cmp = p.comparison;
+    root.appendChild(el('span', { className: 'gc-compare ' + cmp.direction }, [
+      icon(cmp.direction === 'down' ? 'i-arrow-down' : 'i-arrow-up', 13),
+      el('span', { text: cmp.amount }),
+      el('span', { text: cmp.vs_label })
+    ]));
+  }
 
-  root.appendChild(el('p', { className: 'gc-headline', text: p.headline }));
+  if (p.headline) root.appendChild(el('p', { className: 'gc-headline', text: p.headline }));
 
   const lines = el('div', { className: 'gc-lines' });
   for (let i = 0; i < p.lines.length; i++) {
@@ -2099,15 +2148,21 @@ function buildUsageAllowanceCard(p) {
       el('dd', { text: format(Number(p.over_by.value)) + p.over_by.unit })
     ]));
   }
-  table.appendChild(el('div', { className: 'gu-tr' }, [
-    el('dt', { text: 'Charged at' }),
-    el('dd', { text: p.charge.rate })
-  ]));
-  table.appendChild(el('div', { className: 'gu-tr total' }, [
-    el('dt', { text: 'Total' }),
-    el('dd', { text: p.charge.total })
-  ]));
-  root.appendChild(table);
+  /* charge is optional: a period that stayed inside its allowance has nothing
+     to charge for, so the rate and total rows are simply not built. */
+  if (p.charge) {
+    table.appendChild(el('div', { className: 'gu-tr' }, [
+      el('dt', { text: 'Charged at' }),
+      el('dd', { text: p.charge.rate })
+    ]));
+    table.appendChild(el('div', { className: 'gu-tr total' }, [
+      el('dt', { text: 'Total' }),
+      el('dd', { text: p.charge.total })
+    ]));
+  }
+  /* With neither over_by nor charge the table has no rows at all — don't add
+     an empty element with a top border to the card. */
+  if (table.childNodes.length) root.appendChild(table);
 
   if (p.crossed_on) {
     root.appendChild(el('p', { className: 'gu-when' }, [
@@ -2146,7 +2201,11 @@ function buildBillPeriodSelector(p) {
 function buildChargeDetailCard(p) {
   const root = el('div', { className: 'genui' });
   root.appendChild(heading(p.title, 'gu-title'));
-  root.appendChild(el('span', { className: 'gd-chip', text: p.is_recurring ? 'Every month' : 'One-off' }));
+  /* Optional: absent means the tool did not say whether it recurs, so no
+     chip is drawn rather than asserting one or the other. */
+  if (p.is_recurring !== undefined) {
+    root.appendChild(el('span', { className: 'gd-chip', text: p.is_recurring ? 'Every month' : 'One-off' }));
+  }
   root.appendChild(el('p', { className: 'gd-amount', text: p.amount }));
   if (p.when) root.appendChild(el('p', { className: 'gd-when', text: p.when }));
   root.appendChild(el('p', { className: 'gd-explain', text: p.explanation }));
@@ -2362,7 +2421,9 @@ function closeSurface() {
 }
 
 function getCatalog() {
-  log('tool', 'get_genui_catalog called', { components: componentNames() });
+  /* Not reachable from the agent any more — the tool is unregistered. Still
+     used by the playground on window.__demo. */
+  log('state', 'getCatalog() read locally (not an agent tool call)', { components: componentNames() });
   return CATALOGUE;
 }
 
@@ -2842,13 +2903,19 @@ const SCRIPT = [
     text: "That’s your data. Your plan includes thirty gigabytes a month and you used thirty-four point seven five gigabytes, so you were four point seven five gigabytes over. You passed your allowance on Friday the nineteenth of June. Anything beyond it is charged at two pounds a gigabyte, which comes to nine pounds fifty. That falls under allowance exhaustion. Is there anything else I can help you with?",
     render: 'usage_allowance_card' },
 
-  /* 10–11. The customer reacts. Only now does remediation appear. */
+  /* 10–11. The customer reacts. Only now does remediation appear, and it
+     follows the production SOP's ordering: a Bolt On is offered first. */
   { who: 'customer', text: "I didn’t know I’d be charged for that" },
   { who: 'agent',
-    text: "I understand — it isn’t always obvious you’ve gone past it. You used four point seven five gigabytes beyond your thirty. A spend cap sets a monthly limit on charges outside your plan, and once you reach that limit those extras stop until your next bill. It can be set to nought, five, ten, fifteen, twenty, thirty, sixty, one hundred or two hundred pounds. Would you like me to pass you to a colleague who can set one up?",
+    text: "I understand — it isn’t always obvious you’ve gone past it. You used four point seven five gigabytes beyond your thirty. For next month there’s a Data Booster that gives you ten gigabytes of extra data for five pounds, for the rest of the billing month. That would have covered this, and it’s four pounds fifty less than the nine pounds fifty you were charged. Would you like me to add that?" },
+
+  /* 12–13. Only once the Bolt On is declined does the Spend Cap follow. */
+  { who: 'customer', text: "Not really — I'd rather it just stopped charging me" },
+  { who: 'agent',
+    text: "That’s a spend cap then. It sets a monthly limit on charges outside your plan, and once you reach that limit those extras stop until your next bill. It can be set to nought, five, ten, fifteen, twenty, thirty, sixty, one hundred or two hundred pounds. Would you like me to pass you to a colleague who can set one up?",
     render: 'spend_cap_card' },
 
-  /* 12–13. Handover, one sentence, stop. */
+  /* 14–15. Handover, one sentence, stop. */
   { who: 'customer', text: 'Yes, that would be good' },
   { who: 'agent',
     text: "I’ll pass you over now — they’ll get a spend cap set up on your account." }
@@ -3237,7 +3304,7 @@ function onMessengerLoaded() {
     }
   }
 
-  registerTool('get_genui_catalog', function () { return Promise.resolve(getCatalog()); });
+  /* get_genui_catalog is deliberately not registered — see CONFIG.tools. */
   registerTool('render_genui_component', function (args) { return Promise.resolve(renderComponent(args)); });
   registerTool('close_genui_surface', function () { return Promise.resolve(closeSurface()); });
 }
@@ -3449,7 +3516,12 @@ function boot() {
     debug: FLAGS.debug,
     deploymentId: CONFIG.deploymentId || '(none)',
     voice: CONFIG.voice || '(widget default)',
-    today: FIXTURE.today.label
+    today: FIXTURE.today.label,
+    clientTools: Object.keys(CONFIG.tools),
+    /* Says so up front, so a render arriving with no preceding catalogue fetch
+       reads as the design rather than as a missing call. */
+    catalogue: 'local validation schema only — get_genui_catalog is not registered, ' +
+      'the component reference lives in the agent instruction'
   });
 
   /* Surface the project-form mismatch up front rather than leaving it to be
@@ -3820,7 +3892,8 @@ function fbGetCatalog() {
     surface: 'web_chat_inline',
     components: CATALOGUE.components
   };
-  fbLog('tool', 'get_genui_catalog called', { components: componentNames(), surface: catalogue.surface });
+  /* Not reachable from the agent any more — the tool is unregistered. */
+  fbLog('state', 'getCatalog() read locally (not an agent tool call)', { components: componentNames(), surface: catalogue.surface });
   return catalogue;
 }
 
@@ -3857,7 +3930,11 @@ const FB_SCRIPT = [
 
   { who: 'customer', text: "I didn’t know I’d be charged for that" },
   { who: 'agent',
-    text: "I understand — it isn’t always obvious you’ve gone past it. You used 4.75GB beyond your 30GB. A spend cap sets a monthly limit on charges outside your plan, and once you reach that limit those extras stop until your next bill. It can be set to £0, £5, £10, £15, £20, £30, £60, £100 or £200. Would you like me to pass you to a colleague who can set one up?",
+    text: "I understand — it isn’t always obvious you’ve gone past it. You used 4.75GB beyond your 30GB. For next month there’s a Data Booster: 10GB of extra data for £5.00, for the rest of the billing month. That would have covered this, and it’s £4.50 less than the £9.50 you were charged. Would you like me to add that?" },
+
+  { who: 'customer', text: "Not really — I'd rather it just stopped charging me" },
+  { who: 'agent',
+    text: "That’s a spend cap then. It sets a monthly limit on charges outside your plan, and once you reach that limit those extras stop until your next bill. It can be set to £0.00, £5.00, £10.00, £15.00, £20.00, £30.00, £60.00, £100.00 or £200.00. Would you like me to pass you to a colleague who can set one up?",
     render: 'spend_cap_card' },
 
   { who: 'customer', text: 'Yes, that would be good' },
@@ -4055,7 +4132,8 @@ function fbReplay() {
      incompatible with NONE.
    - where render_genui_component puts its output: insertMessage into the
      transcript rather than a slide-out.
-   - what get_genui_catalog declares as its surface.
+   - what its catalogue descriptor declares as its surface (informational
+     now that the catalogue tool is gone).
 
    No new agent, no new tools, no agent-side change of any kind.
 
@@ -4384,7 +4462,7 @@ function fbOnMessengerLoaded() {
     }
   }
 
-  fbRegisterTool('get_genui_catalog', function () { return Promise.resolve(fbGetCatalog()); });
+  /* get_genui_catalog is deliberately not registered — see CONFIG.tools. */
   fbRegisterTool('render_genui_component', function (args) { return Promise.resolve(fbRenderComponent(args)); });
   fbRegisterTool('close_genui_surface', function () { return Promise.resolve(fbCloseSurface()); });
 
