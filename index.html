@@ -438,6 +438,29 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 
 .help-block{margin:2px 16px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
 .help-block h4{font-size:15px;font-weight:650}
+/* The voice entry point on the bills screen. Same tile geometry as the help
+   tiles below it, lifted with the app's own blue so it reads as the primary
+   action on the screen and as obviously voice. */
+.btn-voice{
+  display:flex;align-items:center;gap:12px;width:100%;margin-top:12px;
+  padding:12px;border-radius:10px;text-align:left;
+  background:linear-gradient(120deg,var(--blue-600),var(--blue-400));
+  color:#fff;box-shadow:0 3px 10px rgba(0,80,255,.26);
+  transition:box-shadow 160ms ease,transform 120ms ease;
+}
+.btn-voice:hover{box-shadow:0 5px 16px rgba(0,80,255,.34)}
+.btn-voice:active{transform:scale(.995)}
+.btn-voice-icon{
+  width:34px;height:34px;flex:0 0 auto;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.36);
+}
+.btn-voice-icon svg{stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.btn-voice-text{flex:1 1 auto;min-width:0}
+.btn-voice-title{display:block;font-size:14px;font-weight:650}
+.btn-voice-sub{display:block;font-size:12px;color:rgba(255,255,255,.9);margin-top:1px}
+.btn-voice .chev{color:rgba(255,255,255,.85);flex:0 0 auto}
+
 .help-tiles{display:flex;flex-direction:column;gap:10px;margin-top:12px}
 .help-tile{
   display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:10px;
@@ -1230,8 +1253,21 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
               <!-- Charge rows are built from FIXTURE so there is one source of truth. -->
               <div class="charge-list" id="chargeList"></div>
 
+              <!-- Path B's entry point. The customer is already on their own
+                   bill; this is the whole of Frame A's start. Built from the
+                   existing bills-screen language rather than a new component. -->
               <div class="help-block">
                 <h4>Get help with this bill</h4>
+                <button type="button" class="btn-voice" id="billsVoiceBtn">
+                  <span class="btn-voice-icon" aria-hidden="true">
+                    <svg width="19" height="19" viewBox="0 0 24 24"><use href="#i-mic"/></svg>
+                  </span>
+                  <span class="btn-voice-text">
+                    <span class="btn-voice-title">Talk to the assistant</span>
+                    <span class="btn-voice-sub">Ask about this bill out loud</span>
+                  </span>
+                  <svg class="chev" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chev"/></svg>
+                </button>
                 <div class="help-tiles">
                   <button type="button" class="help-tile">
                     <span>
@@ -1250,17 +1286,6 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- ---- 3.1 Screen A — the messaging conversation ------------------ -->
-          <div class="screen screen-a" id="screenA">
-            <div class="chat-header">
-              <span class="chat-back" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-back"/></svg>
-              </span>
-              <p class="chat-title">O2 · Live chat</p>
-            </div>
-            <div class="chat-body" id="chatBody" aria-live="polite"></div>
           </div>
 
           <!-- ---- 3.4 The slide-out sheet ------------------------------------ -->
@@ -2293,8 +2318,6 @@ const RENDERERS = {
 const dom = {
   viewport:  document.getElementById('phoneViewport'),
   statusBar: document.getElementById('statusBar'),
-  screenA:   document.getElementById('screenA'),
-  chatBody:  document.getElementById('chatBody'),
   billsScroll: document.getElementById('billsScroll'),
   chargeList: document.getElementById('chargeList'),
   scrim:     document.getElementById('scrim'),
@@ -2309,6 +2332,7 @@ const dom = {
   aiBar:     document.getElementById('aiBar'),
   aiBarText: document.getElementById('aiBarText'),
   tabCentre: document.getElementById('tabCentre'),
+  billsVoiceBtn: document.getElementById('billsVoiceBtn'),
   toast:     document.getElementById('toast'),
   tooltip:   document.getElementById('tooltip'),
   cesmHost:  document.getElementById('cesmHost'),
@@ -2649,77 +2673,11 @@ function hideCaption() {
 /* ============================================================================
    3.1 Screen A — the hard-coded messaging conversation
    ========================================================================= */
-const CHAT_SCRIPT = [
-  { who: 'bot', text: "Hi, you’re through to O2. What can I help with today?", time: '09:39' },
-  { who: 'customer', text: 'I need to have a look at my bill', time: '09:40' },
-  { who: 'bot', text: 'No problem — I can take you straight to your bills.', time: '09:40' },
-  { who: 'bot', text: "Our AI assistant can talk you through it there, and it’ll already know what you’ve asked me. Nothing to repeat.", time: '09:40' },
-  { who: 'card', title: 'Open my bills', sub: 'Opens in the My O2 app', button: 'Open my bills', time: '09:41' }
-];
-
-function playChatScript() {
-  clear(dom.chatBody);
-  let t = 300;
-  for (let i = 0; i < CHAT_SCRIPT.length; i++) {
-    const step = CHAT_SCRIPT[i];
-    if (step.who === 'customer') {
-      later(makeCustomerMessage(step), t);
-      t += 450;
-    } else {
-      later(showTyping, t);
-      t += 600;
-      later(makeBotMessage(step), t);
-      t += 450;
-    }
-  }
-}
-
-function showTyping() {
-  removeTyping();
-  const dots = el('div', { className: 'typing', attrs: { id: 'chatTyping', 'aria-hidden': 'true' } },
-    [el('span'), el('span'), el('span')]);
-  dom.chatBody.appendChild(dots);
-  dom.chatBody.scrollTop = dom.chatBody.scrollHeight;
-}
-function removeTyping() {
-  const t = document.getElementById('chatTyping');
-  if (t) t.remove();
-}
-
-function makeCustomerMessage(step) {
-  return function () {
-    dom.chatBody.appendChild(el('div', { className: 'msg from-customer' }, [
-      el('p', { className: 'msg-bubble', text: step.text }),
-      el('p', { className: 'msg-time', text: step.time })
-    ]));
-    dom.chatBody.scrollTop = dom.chatBody.scrollHeight;
-  };
-}
-
-function makeBotMessage(step) {
-  return function () {
-    removeTyping();
-    if (step.who === 'card') {
-      dom.chatBody.appendChild(el('div', { className: 'deeplink-card' }, [
-        el('h4', { text: step.title }),
-        el('p', { text: step.sub }),
-        el('button', {
-          className: 'btn-primary',
-          text: step.button,
-          attrs: { type: 'button', id: 'deepLinkBtn' },
-          on: { click: onDeepLink }
-        }),
-        el('p', { className: 'msg-time', text: step.time, style: { 'margin-top': '8px' } })
-      ]));
-    } else {
-      dom.chatBody.appendChild(el('div', { className: 'msg from-bot' }, [
-        el('p', { className: 'msg-bubble', text: step.text }),
-        el('p', { className: 'msg-time', text: step.time })
-      ]));
-    }
-    dom.chatBody.scrollTop = dom.chatBody.scrollHeight;
-  };
-}
+/* Frame A has no messaging surface any more: it opens on the bills screen.
+   The AWS messaging exchange, its typing indicator and its deep-link card now
+   belong to Frame B alone, which has always had its own copy in
+   FB_CHAT_SCRIPT / fbPlayChatScript. The .screen-a, .chat-*, .msg, .typing and
+   .deeplink-card CSS stays in the stylesheet because Frame B still uses it. */
 
 /* ============================================================================
    5.2 Entry context
@@ -2727,10 +2685,13 @@ function makeBotMessage(step) {
 function buildEntryContext(entryPoint, extra) {
   const ctx = {
     entry_point: entryPoint,
-    channel: 'app_voice',
+    /* Path B in the scoping document: the customer is already on their own
+       bill screen and presses a voice control. Nothing was typed, so no prior
+       utterance is passed — the field is omitted entirely rather than sent
+       empty, and the agent opens by greeting and asking what they need. */
+    channel: 'voice',
     nlu_intent: 'Billing',
-    customer_utterance: 'I need to have a look at my bill',
-    surface: 'bills_home',
+    surface: 'app_voice_slideout',
     bill_period: FIXTURE.bill.period,
     /* The platform passes its own current_date, which is real wall-clock time
        and drifts past the fixture's due date — the agent then reasons about a
@@ -2751,25 +2712,33 @@ function entryContextLine(ctx) {
          ' surface=' + ctx.surface +
          (ctx.today ? ' today=' + ctx.today : '') +
          (ctx.charge_id ? ' charge_id=' + ctx.charge_id : '') +
-         ' said="' + ctx.customer_utterance + '"';
+         (ctx.customer_utterance ? ' said="' + ctx.customer_utterance + '"' : '');
 }
 
 /* ============================================================================
    Screen A → Screen B, and starting the agent
    ========================================================================= */
+/* Frame A now opens on the bills screen and stays there — there is no
+   messaging surface to leave. Kept as the single place that guarantees the
+   app chrome is in its on-bills state, since the phase 2 entry points and the
+   boot path both want that. */
 function goToBills() {
-  if (state.screen === 'bills') return;
   state.screen = 'bills';
-  dom.screenA.classList.add('is-gone');
   dom.statusBar.classList.add('on-dark');
   dom.aiDock.classList.add('is-shown');
   syncStatusBar();
-  log('state', 'screen A → screen B');
 }
 
-function onDeepLink() {
-  const ctx = buildEntryContext('messaging_deeplink');
-  log('state', 'deep link pressed', ctx);
+/* The assistant control on the bills screen. This is the whole of Frame A's
+   entry: the customer is looking at their bill and asks to talk about it. */
+function onNativeVoiceStart() {
+  if (state.scriptLive || state.cesm) {
+    log('state', 'assistant already running — press ignored');
+    return;
+  }
+  if (state.finished) { replay(); }
+  const ctx = buildEntryContext('native_billing_screen');
+  log('state', 'assistant started from the bills screen', ctx);
   goToBills();
   startAgent(ctx);
 }
@@ -2886,14 +2855,21 @@ function otherChargesPayload() {
    £33.00, and out-of-plan £9.50.
    ------------------------------------------------------------------------- */
 const SCRIPT = [
-  /* 1. Opens on the bill directly. No "which one?". */
+  /* 1–2. Nothing was typed before this, so the agent opens by greeting and
+     asking. The customer is holding their own bill screen, which is why the
+     answer can go straight to the current period without asking which one. */
   { who: 'agent',
-    text: "Your June bill is forty-eight pounds fifty. It hasn’t been taken yet — it’s due on the eighteenth of July. Your May bill was thirty-nine pounds, so this one is nine pounds fifty more. Would you like me to take you through it?" },
+    text: "Hello, you’re through to the O2 assistant. How can I help?" },
+  { who: 'customer', text: 'I want to go through my latest bill' },
+
+  /* 3. Opens on the bill directly. No "which one?". */
+  { who: 'agent',
+    text: "Of course. Your June bill is forty-eight pounds fifty. It hasn’t been taken yet — it’s due on the eighteenth of July. Your May bill was thirty-nine pounds, so this one is nine pounds fifty more. Would you like me to take you through it?" },
   { who: 'customer', text: 'Yes, please' },
 
   /* 3–5. The three-part walkthrough, rendered alongside and spoken in full. */
   { who: 'agent',
-    text: "Of course. I’ll go through it in three parts. First, your device. You’re paying six pounds a month for the Apple iPhone 15 Pro Max, 256 gigabytes.",
+    text: "I’ll go through it in three parts. First, your device. You’re paying six pounds a month for the Apple iPhone 15 Pro Max, 256 gigabytes.",
     render: 'bill_summary_card' },
   { who: 'agent',
     text: "Then your monthly tariff. Your service plans across two active lines come to twenty-two pounds, monthly extras are fifteen pounds fifty, and other charges and adjustments are one pound fifty. Six pounds of discounts come off that, so the tariff side is thirty-three pounds." },
@@ -3023,7 +2999,7 @@ function replay() {
   window.clearTimeout(state.quietTimer);
   teardownLiveSession();
 
-  state.screen = 'messaging';
+  state.screen = 'bills';
   state.scriptIndex = -1;
   state.awaitingCustomer = false;
   state.finished = false;
@@ -3038,14 +3014,13 @@ function replay() {
   hideTooltip();
   setBarState('idle');
 
-  dom.screenA.classList.remove('is-gone');
-  dom.statusBar.classList.remove('on-dark');
-  dom.aiDock.classList.remove('is-shown');
+  /* Back to the static bills screen the customer started on, not to a
+     messaging conversation — Frame A no longer has one. */
   dom.billsScroll.scrollTop = 0;
   dom.endMarker.classList.remove('is-visible');
   dom.btnReplay.classList.remove('is-emphasised');
   collapseAllCharges();
-  playChatScript();
+  goToBills();
   updateModeIndicator();
   log('state', 'demo reset');
 }
@@ -3445,7 +3420,7 @@ function updateModeIndicator() {
 
 function onAiBarPress() {
   if (state.mode === 'live' && CONFIG.deploymentId) {
-    if (!state.cesm) { startLiveSession(state.entryContext || buildEntryContext('in_app_tactical')); }
+    if (!state.cesm) { startLiveSession(state.entryContext || buildEntryContext('native_billing_screen')); }
     else { toggleMic(); }
     return;
   }
@@ -3455,6 +3430,7 @@ function onAiBarPress() {
   else { log('state', 'AI bar pressed while the scripted sequence is running — ignored'); }
 }
 
+dom.billsVoiceBtn.addEventListener('click', onNativeVoiceStart);
 dom.aiBar.addEventListener('click', onAiBarPress);
 dom.tabCentre.addEventListener('click', onAiBarPress);
 dom.btnReplay.addEventListener('click', replay);
@@ -3511,7 +3487,9 @@ function boot() {
   paintFixtureIntoBillsScreen();
   buildChargeList();
   assertFixture();
-  playChatScript();
+  /* Static on the bills screen: nothing plays and nothing auto-advances until
+     the customer presses the assistant control. */
+  goToBills();
   updateModeIndicator();
 
   if (FLAGS.debug) {
@@ -4877,6 +4855,7 @@ window.__demo = {
   state: state,
   replay: replay,
   script: SCRIPT,
+  buildEntryContext: buildEntryContext,
   payloads: PAYLOADS
 };
 
