@@ -2,17 +2,21 @@
 
 A single-file static microsite for a telecoms product team. It has two jobs: explain the digital billing AI opportunity to executive stakeholders, and demonstrate the thing working inside a phone frame at the foot of the page. A customer messaging about their bill reaches an agent that, instead of reading a nine-line breakdown aloud, draws components onto the screen — a bill summary, then a usage and allowance card that proves an out-of-plan charge visually. Everything is mock data.
 
-**Two phone frames sit side by side, showing two ways in.** 
+**Two phone frames sit side by side, showing the two entry paths that are in scope.**
 
-| | Pattern A — in the app | Pattern B — in the chat |
+| | Path A — from messaging | Path B — from the billing screens |
 | --- | --- | --- |
-| Entry | Messaging offers a deep link | Messaging hands over in place |
-| Where it happens | The native bills screen | The chat window itself |
-| Modality | Voice | Text |
-| Where components appear | A slide-out sheet over the app | Inline in the chat transcript |
-| Journey | app → AWS chat → GECX voice → AWS chat | app → AWS chat → GECX chat → AWS chat |
+| Frame | Right (Frame B) | Left (Frame A) |
+| Entry | The customer has messaged O2 about their bill | The customer is on their own bill screen and presses the assistant |
+| Modality | Text, throughout | Voice |
+| Where components appear | Inline in the chat transcript | A slide-out sheet over the app |
+| Prior utterance in the entry context | Yes — what they typed | None. Nothing was typed, so the agent greets and asks |
 
-The comparison is the point. Pattern A moves the customer from chat to voice and back to chat again, which is a heavy transition. Pattern B keeps them in text the whole way.
+A third path, **IVR deflection into the app**, is in the scoping document as a later phase and is not demonstrated here.
+
+**Both frames are the same agent, with the same resolution logic and the same components. The only difference is where the customer entered and which modality they are in.** That sentence is the point of the page and it is now on the page, above the frames.
+
+The principle underneath it: a customer is never moved between modalities mid-journey. Someone who starts by typing stays in text and returns to messaging if they need a person. Someone who starts from their bill screen talks, because there was no typing to interrupt.
 
 Each frame runs independently: its own session, its own script, its own replay button, its own end marker. Starting one does not touch the other, and you can run both at once.
 
@@ -22,13 +26,36 @@ Two files, no build step: `index.html` (all HTML, CSS and JavaScript) and this R
 
 **The scripted demo works with nothing connected.** Set `CONFIG.mode` to `"simulated"` and the whole conversation plays from a script with no backend, no token request and no `<ces-messenger>` element on the page.
 
-`CONFIG.mode` is currently `"live"` against a configured deployment. Nothing is created or requested on page load either way; a session only opens when the customer presses **Open my bills**. If the widget cannot be reached, the page falls back — a toast offers **Run scripted demo instead**, which switches to the scripted path without a reload.
+`CONFIG.mode` is currently `"live"` against a configured deployment. Nothing is created or requested on page load either way; a session only opens when the customer presses **Talk to the assistant** in Frame A, or reaches the handover in Frame B. If the widget cannot be reached, the page falls back — a toast offers **Run scripted demo instead**, which switches to the scripted path without a reload.
 
 ## Running the demo
 
-**Frame A.** Tap **Open my bills** in the messaging conversation. The agent turn plays, then a **Next** button appears in the caption strip above the AI bar — customer turns wait for you, so you control the pacing. **Replay A** under the phone resets that frame, including any live session.
+**Frame A (path B, voice).** Opens static on the bills screen with nothing playing — this is a customer looking at their own bill. Press **Talk to the assistant** in the "Get help with this bill" block to start. Because nothing was typed, no prior utterance is passed and the agent opens by greeting and asking what is needed. The agent turn plays, then **Next** appears in the caption strip — customer turns wait for you. **Replay A** returns the frame to the static bills screen.
 
-**Frame B.** Tap **Continue in chat**. The messaging window is replaced where it stands by a full-screen agent surface — nothing navigates and no app opens. In scripted mode the customer's next line is loaded into the composer as a draft: tap the send arrow to play it, which is Frame B's equivalent of Frame A's **Next**. **Replay B** resets that frame.
+**Frame B (path A, text).** Opens behind a **Start demo** overlay. Nothing runs until it is pressed: no scripted messages, no timers, no widget, no session. Pressing it plays the messaging exchange from the first message; then tap **Continue in chat** and the messaging window is replaced where it stands by the assistant. In scripted mode the customer's next line is loaded into the composer as a draft: tap the send arrow to play it. **Replay B** puts the overlay back rather than restarting immediately.
+
+### The start gate
+
+Frame B's overlay exists because the messaging exchange is what explains *why* the customer is being handed over, and it used to play on load — so anyone who did not scroll immediately missed the premise.
+
+It is built as `makeStartGate(gateEl, btnEl, onStart, label)`, scoped to a frame's viewport rather than hardcoded to Frame B, so Frame A can take one later without rework. Frame A does not need one today: pressing its assistant control is already a deliberate start.
+
+That nothing runs behind the gate falls out of the structure rather than being policed — `fbPlayChatScript` is simply not called until it is pressed, and the widget is only ever created further down that path. Confirmed with `?debug`: six seconds after load there are zero messages painted, zero timers armed and zero widget instances.
+
+**If you would rather have one page-level Start covering both frames** for a stakeholder session, that is a one-liner: call both frames' start paths from a single button instead of giving Frame B its own gate. The per-frame version is implemented because it lets the two frames be run independently, which is how they are usually demoed.
+
+### Guidance for someone opening the link cold
+
+The demo used to assume a presenter. Two layers now stand in for one:
+
+- **Per-frame framing**, static, above each phone: which path it is, what the customer did to get there, and which modality.
+- **Four progressive prompts**, appearing in a rail *below* each phone as the conversation reaches specific beats — the bill card rendering, the usage card rendering, the close where the assistant offers nothing, and remediation finally being offered.
+
+The prompts are driven off the component render events and the script's own turn transitions, never off timers, so they land at the same moments in live mode where the conversation can go off-script. Each fires once per run, each can be dismissed with its ×, and a replay clears them.
+
+All of it sits outside the phone frames and is styled as marginalia — muted, dashed rule, numbered — so it cannot be mistaken for product UI.
+
+**Turning it off:** `?nonotes`, or the **Hide notes** button in the controls under the frames. With them off the demo looks exactly as it does today.
 
 The two frames are independent. Run them one after another to talk through each journey, or start both and let them play alongside each other.
 
@@ -61,6 +88,8 @@ This is deliberate and it mirrors the production build. Explaining why a charge 
 ### 3. No asking which bill
 
 "My bill" and "last month's bill" mean the most recent period. The agent fetches it and answers. The old script opened by asking which bill the customer wanted — a round trip for information the request already contained.
+
+In Frame A the customer is holding their own bill screen when they press the assistant, which is why the answer can go straight to the current period. **The obvious next addition is contextual entry**: an "Explain this bill" control against a specific bill that passes that period in the entry context, so the agent opens already knowing which one and skips discovery entirely. The scoping document has it as a later phase, so it is deliberately not built here.
 
 `bill_period_selector` is now scoped to what it is actually for: an earlier bill the customer has not named, or a comparison between periods. It is in the catalogue and rendersable, but the main path never uses it.
 
@@ -129,6 +158,34 @@ Carries the reactive remediation moment, and is a P1 journey in the production b
 **Display only, deliberately.** The amounts are rendered as static chips, not buttons: nothing is focusable, nothing carries `data-send`, and there is no return path to the agent. The amounts are *shown*, not offered. Choosing one is a later phase, so the agent offers to pass the customer to a colleague rather than implying a cap can be set from the card. Its status and amount list come from `FIXTURE.spendCap` — nothing is hardcoded in the renderer.
 
 Amounts are strings with two decimals, per the house convention, so they validate against the same `MONEY` pattern as every other amount on the page.
+
+## Rendering components inside the transcript
+
+Frame B injects components into the widget's shadow DOM, and the page's CSS does not follow them there. The card rules are harvested from this page's own stylesheet at runtime and handed over as `custom-css` — but **the harvester keeps rules whose selector mentions a component class, and that is not the whole story of how the page styles anything.**
+
+Two defects came from that gap, both reproduced before being fixed:
+
+### `bill_period_selector` rendered as a bordered grey table
+
+Not a stub, and not a `<table>` — `buildBillPeriodSelector` builds divs and buttons and already used the shared classes. The rows are `<button>` elements, and the page's element reset (`button { background: none; border: 0; padding: 0 }`) has the selector `button`, which mentions no component class and so was never harvested. Inside the widget the buttons kept their UA defaults: `ButtonFace` grey, an outset border, square corners. Hence "hard black borders, alternating grey and white rows".
+
+The page's base reset is now re-emitted into the widget, scoped to the card. It is written with `:where()` so it carries the same element-level specificity it has on the page — with `!important` it would flatten `.gc-action`'s pill styling instead of sitting under it, which is exactly what happened on the first attempt.
+
+The same omission was giving the usage table's `<dl>`/`<dd>` their UA margins.
+
+### `spend_cap_card` was completely unstyled
+
+`FB_CSS_KEEP` listed `.genui, .gc-, .gu-, .gp-, .gd-, .sr-only, .fb-card`. When `spend_cap_card` was added its rules were all `.gs-`, which was never added to the list, so none of its CSS reached the widget — the amount chips rendered as bare inline text and ran off the edge. `.gs-` is now in the list.
+
+> **Adding a component means adding its class prefix to `FB_CSS_KEEP`.** Nothing catches this automatically: the component renders correctly in Frame A's slide-out and silently unstyled in Frame B.
+
+### Width containment
+
+An override stylesheet is appended **after** the harvested rules — never merged into them, so Frame A's slide-out keeps exactly the CSS it was designed with. Every rule is scoped to `.fb-card`, so ordinary chat messages are untouched. It sets `box-sizing`, holds the card to `width: 100%; max-width: 100%; min-width: 0`, gives flex children `min-width: 0` so a long label wraps instead of shoving the amount column off the edge, keeps amounts on one line, wraps chip rows, and lets a component message use the full bubble width with no bubble padding — a bill breakdown is a data display, not a sentence.
+
+Honest note on one of these: the `box-sizing` rule could not be shown to be load-bearing. The widget's own stylesheet does `:host { box-sizing: border-box }` followed by `*, *::before, *::after { box-sizing: inherit }`, so injected content already computes as `border-box`. An earlier measurement suggested otherwise, but that was a gap in the stand-in widget used for testing, not in the real one. The rule is kept as cheap insurance against a build that changes it; it is not the fix for anything currently observed.
+
+All five components were measured at a 390px iframe: nothing clipped, no horizontal overflow in the transcript, every amount fully visible.
 
 ## One agent serves both frames
 
@@ -263,6 +320,7 @@ Validation, the component schemas and the component builders are shared between 
 | Flag | Effect |
 | --- | --- |
 | `?debug` | Opens the debug panel on load. It logs widget events, tool calls with full arguments, validation results, render outcomes and state transitions for **both** frames, newest first. Frame B's entries are prefixed `[Frame B]`; unprefixed entries are Frame A's. Also on `window.__demoLog`. |
+| `?nonotes` | Hides the progressive prompts entirely, for a presenter-led session. The **Hide notes** button in the controls does the same thing without a reload. |
 | `?phase2` | Makes the phase 2 tactical entry points (**Explain my bill**, **Query this charge**) live rather than inert. They start the agent with `entry_point: "in_app_tactical"` and, where relevant, the charge id. Frame A only — the phase 2 markers live on the bills screen, which Frame B never opens. |
 
 Combine them: `index.html?debug&phase2`.
@@ -281,9 +339,30 @@ Combine them: `index.html?debug&phase2`.
 
 The interference mechanisms, the sanitiser allowlist, the `safe`/`templateId` contract and the event dispatch target were read from the widget's public source (`GoogleCloudPlatform/ces-messenger` — `src/BidiWidget.ce.vue`, `src/bidi/*.js`) and cross-checked against a HAR capture of a real broken two-frame session, which also showed the full tool loop working over the text channel (at the time via `get_genui_catalog`, since removed). The gstatic bundle is built from that repository; if a future build changes these internals, the isolation audit and the degraded tap route are the designed safety nets.
 
+## Two things that are not client-side defects
+
+### The agent's own line copy
+
+A live trace showed the Discounts line reading "Loyalty rewarded Standard discounts". Nothing in this page joins those strings: `buildBillSummaryCard` renders `line.sub` into a single element and never concatenates, and `FIXTURE.bill.breakdown` has `sub: 'Loyalty rewarded'` and nothing else. In live mode the agent composes `component_json` itself, so that doubled sub-label is the agent's own value for the field. It is fixed in the agent instruction, not here.
+
+### Components appearing above the text that introduces them
+
+Not fixable client-side, and not worth fighting. The HAR of a live session shows why:
+
+```
+turn 1: ["toolCalls"]  turnCompleted=true
+turn 2: ["text"]       turnCompleted=true
+```
+
+The platform completes the tool-call turn *before* any text streams. `render_genui_component` therefore fires, and the card is inserted, while the sentence that introduces it does not exist yet. Holding the `insertMessage` until text arrives would mean buffering the card on a guess about whether text is still coming — a timeout in everything but name, and it would strand the card entirely on a turn where the agent renders and says nothing further. Left as is.
+
+The mitigation is in the copy rather than the client: no agent line refers to the component or depends on it having rendered, so a card arriving early reads as the agent putting something up before talking about it, not as a broken sequence.
+
 ## Illustrative data
 
 All figures, the account number, the device and the usage are invented for this demo. Nothing here is O2 pricing, and no real customer data is used. Demo "today" is hard-coded as Tuesday 14 July 2026 so the demo never drifts.
+
+**The demo's date is now passed explicitly in the entry context** (`today` and `today_label`, plus `today=` in the compact hidden-context line both frames send). The platform passes its own `current_date` from real wall-clock time, which had drifted twelve days past the 18 July due date the card displays — so the agent was reasoning about a bill that, by its own sense of today, was overdue. Pinning the date in the entry context was chosen over moving the fixture forward: moving it would mean rewriting every month reference in both scripts and in the spoken copy, and the fixture's internal arithmetic is load-bearing. If you would rather roll the fixture forward instead, `FIXTURE.today`, `FIXTURE.bill.period_label`, `due_date_label` and `previous.period_label` are the four values to change, and every spoken month in `SCRIPT` and `FB_SCRIPT` then has to follow.
 
 Every figure the agent speaks traces to `FIXTURE`, including the derived ones. The three-part walkthrough decomposes the same total rather than restating it:
 
