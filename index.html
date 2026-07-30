@@ -231,6 +231,8 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 .frame-col[data-frame="b"] .frame-cap-tag{color:var(--site-violet)}
 .frame-cap-title{font-size:16px;line-height:1.3;font-weight:650;letter-spacing:-.01em;margin-top:8px}
 .frame-cap-body{font-size:13px;color:var(--site-ink-2);margin-top:8px}
+.demo-thesis{border-left:3px solid var(--site-accent);padding-left:14px;max-width:76ch}
+.demo-thesis strong{color:var(--site-ink)}
 .frame-cap-flow{
   display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px;
   font-size:11px;font-weight:650;color:var(--site-ink-3);
@@ -750,6 +752,40 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
 }
 
 /* ============================================================================
+   11. Progressive prompts.
+   Commentary on the demo, not part of it. They sit in the frame column
+   BELOW the phone, never over it, and are deliberately styled as marginalia:
+   muted, dashed rule, small caps label — nothing that could be mistaken for
+   something inside the device.
+   ========================================================================= */
+.notes{
+  width:100%;display:flex;flex-direction:column;gap:8px;
+  margin-top:2px;min-height:0;
+}
+.note{
+  position:relative;display:flex;gap:10px;align-items:flex-start;
+  padding:11px 30px 11px 13px;border-radius:10px;
+  background:rgba(255,255,255,.035);border:1px dashed var(--site-line);
+  animation:note-in 260ms ease both;
+}
+@keyframes note-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.note.is-leaving{opacity:0;transform:translateY(-4px);transition:opacity 200ms ease,transform 200ms ease}
+.note-mark{
+  flex:0 0 auto;width:18px;height:18px;border-radius:50%;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--site-accent-soft);color:var(--site-accent);
+  font-size:10px;font-weight:700;
+}
+.note-text{font-size:12px;line-height:1.5;color:var(--site-ink-2)}
+.note-text b{color:var(--site-ink);font-weight:600}
+.note-close{
+  position:absolute;top:7px;right:8px;width:18px;height:18px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--site-ink-3);font-size:13px;line-height:1;
+}
+.note-close:hover{color:var(--site-ink);background:var(--site-surface-2)}
+
+/* ============================================================================
    10. Start gate.
    A cover over one phone's viewport that holds everything back until it is
    pressed. Written against a frame's viewport rather than against Frame B, so
@@ -1192,7 +1228,8 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
   <div class="wrap">
     <h2 class="section-title" id="demo-h">The demo — two ways in, side by side</h2>
     <p class="demo-instruction">One agent, one set of components, two journeys. Both customers start in the same messaging conversation and ask the same question. <strong>Pattern A</strong> hands them from chat to voice and back again; <strong>Pattern B</strong> keeps them in text throughout. Start the left frame with <strong>Open my bills</strong> and the right with <strong>Continue in chat</strong>. Customer turns wait for you in both — tap <strong>Next</strong> on the left, the send arrow on the right.</p>
-    <p class="demo-instruction">This is a different question from the two entry points above: those are about <em>when</em> we place a way in, these are about <em>what happens</em> once the customer takes one.</p>
+    <p class="demo-instruction demo-thesis"><strong>Both frames are the same agent, with the same resolution logic and the same components. The only difference is where the customer entered and which modality they are in.</strong> A customer is never moved between modalities mid-journey: someone who starts by typing stays in text, and someone who starts from their bill screen talks, because there was no typing to interrupt.</p>
+    <p class="demo-instruction">A third path, IVR deflection into the app, is in the scoping document as a later phase and is not demonstrated here.</p>
 
     <div class="demo-stage">
       <!-- ==================================================================
@@ -1201,10 +1238,10 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
            =============================================================== -->
       <div class="frame-col" data-frame="a">
         <div class="frame-cap">
-          <p class="frame-cap-tag">Pattern A · in the app</p>
-          <h3 class="frame-cap-title">Voice on the bills screen, components in a slide-out</h3>
-          <p class="frame-cap-body">The deep link leaves messaging and opens the native bills screen. A voice agent picks up what was already said and draws components into a sheet over the app.</p>
-          <p class="frame-cap-flow"><span>Chat</span><i>→</i><span>App</span><i>→</i><span>Voice</span><i>→</i><span>Chat</span></p>
+          <p class="frame-cap-tag">Path B · from the billing screens</p>
+          <h3 class="frame-cap-title">Starts on their own bill, and talks</h3>
+          <p class="frame-cap-body">The customer is already looking at their bill in the app and presses the assistant. Nothing was typed, so the agent greets, asks what they need, and answers out loud — drawing components into a sheet over the app as it explains.</p>
+          <p class="frame-cap-flow"><span>Bill screen</span><i>→</i><span>Voice</span></p>
         </div>
 
       <!-- ==================================================================
@@ -1364,6 +1401,9 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
         </div>
       </div>
 
+        <!-- 11. Commentary rail. Outside the phone, below it. -->
+        <div class="notes" id="notesA" aria-live="polite"></div>
+
         <!-- Frame A's own controls. Same elements and same handlers as before;
              they have moved under the frame they drive, nothing more. -->
         <div class="frame-controls">
@@ -1387,10 +1427,10 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
            =============================================================== -->
       <div class="frame-col" data-frame="b">
         <div class="frame-cap">
-          <p class="frame-cap-tag">Pattern B · in the chat</p>
-          <h3 class="frame-cap-title">The chat window becomes the agent, components inline</h3>
-          <p class="frame-cap-body">The messaging window is replaced in place by a full-screen web widget. The conversation stays in text and the same components are injected into the transcript itself.</p>
-          <p class="frame-cap-flow"><span>Chat</span><i>→</i><span>Chat</span></p>
+          <p class="frame-cap-tag">Path A · from messaging</p>
+          <h3 class="frame-cap-title">Starts by typing, and stays in text</h3>
+          <p class="frame-cap-body">The customer has messaged O2 about their bill. The messaging window is replaced in place by the AI assistant, the conversation stays in text throughout, and the same components are injected into the transcript itself.</p>
+          <p class="frame-cap-flow"><span>Messaging</span><i>→</i><span>Text</span></p>
         </div>
 
         <div class="phone">
@@ -1459,6 +1499,8 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
           </div>
         </div>
 
+        <div class="notes" id="notesB" aria-live="polite"></div>
+
         <div class="frame-controls">
           <span class="mode-indicator" id="fbModeIndicator" data-live="false">
             <span class="mode-dot" aria-hidden="true"></span>
@@ -1478,6 +1520,7 @@ table.catalogue code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,mono
          =============================================================== -->
     <div class="controls">
       <div class="controls-row">
+        <button type="button" class="ctl-btn" id="btnNotes" aria-pressed="true">Hide notes</button>
         <button type="button" class="ctl-btn" id="btnDebug" aria-expanded="false" aria-controls="debugPanel">Open debug</button>
       </div>
       <p class="small-print">Demo build. Illustrative data — not O2 pricing.</p>
@@ -1575,7 +1618,7 @@ const CONFIG_B = {
    points live rather than inert. */
 const FLAGS = (function () {
   const q = new URLSearchParams(window.location.search);
-  return { debug: q.has('debug'), phase2: q.has('phase2') };
+  return { debug: q.has('debug'), phase2: q.has('phase2'), noNotes: q.has('nonotes') };
 })();
 
 /* ============================================================================
@@ -2475,6 +2518,7 @@ function renderComponent(args) {
   state.currentComponent = name;
   Sheet.show(node);
   log('render', 'rendered ' + name, { component: name });
+  notesA.onRender(name);
   /* Return immediately — the customer’s tap comes back later as a user turn. */
   return { status: 'RENDERED', component: name };
 }
@@ -2497,6 +2541,9 @@ function getCatalog() {
    ========================================================================= */
 function customerIntent(phrase, why) {
   log('intent', 'customer intent: ' + phrase, { source: why || 'component action' });
+  /* Live mode has no scripted turn transition, so the close beat lands on the
+     customer's next input after the usage card — the same moment. */
+  if (state.currentComponent === 'usage_allowance_card') notesA.fire('close');
   if (state.mode === 'live' && state.cesm && typeof state.cesm.sessionInput === 'function') {
     try {
       state.cesm.sessionInput(phrase);
@@ -2996,6 +3043,9 @@ function playAgentTurn(step) {
        agent turns play straight through. Presenter pacing is unchanged: it is
        customer turns that wait for Next, and they still do. */
     if (upcoming.who === 'agent') { scriptNext(); return; }
+    /* The close beat: the agent has just finished explaining the charge and
+       offered nothing. Driven off the turn transition, not a timer. */
+    if (step.render === 'usage_allowance_card') notesA.fire('close');
     state.scriptIndex++;
     state.awaitingCustomer = true;
     setCaption('agent', step.text, true);
@@ -3059,6 +3109,7 @@ function replay() {
   dom.btnReplay.classList.remove('is-emphasised');
   collapseAllCharges();
   goToBills();
+  notesA.reset();
   updateModeIndicator();
   log('state', 'demo reset');
 }
@@ -3472,6 +3523,10 @@ dom.billsVoiceBtn.addEventListener('click', onNativeVoiceStart);
 dom.aiBar.addEventListener('click', onAiBarPress);
 dom.tabCentre.addEventListener('click', onAiBarPress);
 dom.btnReplay.addEventListener('click', replay);
+const btnNotes = document.getElementById('btnNotes');
+if (btnNotes) {
+  btnNotes.addEventListener('click', function () { setNotesEnabled(!notesA.enabled); });
+}
 dom.btnDebug.addEventListener('click', function () {
   const open = dom.debugPanel.classList.toggle('is-open');
   dom.btnDebug.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -3530,6 +3585,7 @@ function boot() {
   goToBills();
   updateModeIndicator();
 
+  if (FLAGS.noNotes) setNotesEnabled(false);
   if (FLAGS.debug) {
     dom.debugPanel.classList.add('is-open');
     dom.btnDebug.setAttribute('aria-expanded', 'true');
@@ -3539,6 +3595,7 @@ function boot() {
     mode: state.mode,
     phase2: FLAGS.phase2,
     debug: FLAGS.debug,
+    notes: FLAGS.noNotes ? 'hidden (?nonotes)' : 'shown',
     deploymentId: CONFIG.deploymentId || '(none)',
     voice: CONFIG.voice || '(widget default)',
     today: FIXTURE.today.label,
@@ -3577,6 +3634,88 @@ function boot() {
       tools: wrongApp
     });
   }
+}
+
+/* ============================================================================
+   11. Progressive prompts.
+
+   Commentary for someone opening the link cold, with no presenter. Four beats,
+   no more. Driven off the render events and the script's own turn transitions
+   — never off timers — so they land at the same moments in live mode, where
+   the conversation can go off-script.
+
+   Each frame gets its own rail, and each note fires once per run.
+   ========================================================================= */
+const NOTE_TEXT = {
+  bill: 'The assistant is still explaining the bill <b>in full</b>, every figure. The card supports the explanation rather than replacing it — the journey still works if nothing renders.',
+  usage: 'This is the moment a phone call cannot do well. The <b>allowance, the amount used, the date it was passed and the rate</b> are all visible at once.',
+  close: 'It has explained the charge and stopped — <b>no cap, no bar, no bolt-on offered</b>. That is deliberate and matches the production build.',
+  remedy: 'The customer opened the door, so now it responds. <b>A Bolt On first</b>, and a Spend Cap only because that was declined.'
+};
+
+/* Which component render opens which note. */
+const NOTE_ON_RENDER = {
+  bill_summary_card: 'bill',
+  usage_allowance_card: 'usage',
+  spend_cap_card: 'remedy'
+};
+
+function makeNotes(railEl, label) {
+  const fired = {};
+  let n = 0;
+  const notes = {
+    enabled: !FLAGS.noNotes,
+    fire: function (id) {
+      if (!notes.enabled || !railEl || fired[id] || !NOTE_TEXT[id]) return;
+      fired[id] = true;
+      n++;
+      const row = el('div', { className: 'note' });
+      row.appendChild(el('span', { className: 'note-mark', text: String(n) }));
+      /* The only innerHTML in the file, and it takes author-written constants
+         from NOTE_TEXT above — never anything from the agent or the customer. */
+      const text = el('p', { className: 'note-text' });
+      text.innerHTML = NOTE_TEXT[id];
+      row.appendChild(text);
+      row.appendChild(el('button', {
+        className: 'note-close', text: '×',
+        attrs: { type: 'button', 'aria-label': 'Dismiss note' },
+        on: { click: function () {
+          row.classList.add('is-leaving');
+          window.setTimeout(function () { row.remove(); }, 220);
+        } }
+      }));
+      railEl.appendChild(row);
+      log('note', (label || '') + 'prompt shown: ' + id);
+    },
+    onRender: function (componentName) {
+      const id = NOTE_ON_RENDER[componentName];
+      if (id) notes.fire(id);
+    },
+    reset: function () {
+      for (const k in fired) delete fired[k];
+      n = 0;
+      if (railEl) clear(railEl);
+    },
+    setEnabled: function (on) {
+      notes.enabled = on;
+      if (!on && railEl) clear(railEl);
+    }
+  };
+  return notes;
+}
+
+const notesA = makeNotes(document.getElementById('notesA'), '');
+const notesB = makeNotes(document.getElementById('notesB'), '[Frame B] ');
+
+function setNotesEnabled(on) {
+  notesA.setEnabled(on);
+  notesB.setEnabled(on);
+  const btn = document.getElementById('btnNotes');
+  if (btn) {
+    btn.textContent = on ? 'Hide notes' : 'Show notes';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  log('state', 'guidance notes ' + (on ? 'shown' : 'hidden'));
 }
 
 /* ============================================================================
@@ -3932,6 +4071,7 @@ function fbRenderComponent(args) {
 
   fbInsertComponent(name, node);
   fbLog('render', 'rendered ' + name + ' inline', { component: name });
+  notesB.onRender(name);
   /* Fire and forget, exactly as Frame A does. A tap comes back later as an
      ordinary user turn. */
   return { status: 'RENDERED', component: name };
@@ -4058,6 +4198,7 @@ function fbPlayAgentTurn(step) {
       /* Consecutive agent turns play straight through, as in Frame A. Only
          customer turns wait for the presenter to send them. */
       if (upcoming.who === 'agent') { fbScriptNext(); return; }
+      if (step.render === 'usage_allowance_card') notesB.fire('close');
       fbState.scriptIndex++;
       fbState.awaitingCustomer = true;
       fbArmComposer(upcoming.text);
@@ -4121,6 +4262,8 @@ fbDom.thread.addEventListener('click', function (e) {
 }, true);
 
 function fbCustomerIntent(phrase) {
+  /* See customerIntent: the close beat, for the live path. */
+  notesB.fire('close');
   if (fbState.mode === 'live' && fbState.cesm && typeof fbState.cesm.sessionInput === 'function') {
     /* Show the turn in the transcript, then send it. sessionInput on its own
        does not echo the customer, so without the insertMessage the tap would
@@ -4187,6 +4330,7 @@ function fbReplay() {
   fbSetAgentStatus('Connected', true);
   /* Back behind the gate, not straight into the exchange again. */
   if (fbState.gate) fbState.gate.show();
+  notesB.reset();
   fbUpdateModeIndicator();
   fbLog('state', 'demo reset — waiting on the start gate');
 }

@@ -2,17 +2,21 @@
 
 A single-file static microsite for a telecoms product team. It has two jobs: explain the digital billing AI opportunity to executive stakeholders, and demonstrate the thing working inside a phone frame at the foot of the page. A customer messaging about their bill reaches an agent that, instead of reading a nine-line breakdown aloud, draws components onto the screen — a bill summary, then a usage and allowance card that proves an out-of-plan charge visually. Everything is mock data.
 
-**Two phone frames sit side by side, showing two ways in.** 
+**Two phone frames sit side by side, showing the two entry paths that are in scope.**
 
-| | Pattern A — in the app | Pattern B — in the chat |
+| | Path A — from messaging | Path B — from the billing screens |
 | --- | --- | --- |
-| Entry | Messaging offers a deep link | Messaging hands over in place |
-| Where it happens | The native bills screen | The chat window itself |
-| Modality | Voice | Text |
-| Where components appear | A slide-out sheet over the app | Inline in the chat transcript |
-| Journey | app → AWS chat → GECX voice → AWS chat | app → AWS chat → GECX chat → AWS chat |
+| Frame | Right (Frame B) | Left (Frame A) |
+| Entry | The customer has messaged O2 about their bill | The customer is on their own bill screen and presses the assistant |
+| Modality | Text, throughout | Voice |
+| Where components appear | Inline in the chat transcript | A slide-out sheet over the app |
+| Prior utterance in the entry context | Yes — what they typed | None. Nothing was typed, so the agent greets and asks |
 
-The comparison is the point. Pattern A moves the customer from chat to voice and back to chat again, which is a heavy transition. Pattern B keeps them in text the whole way.
+A third path, **IVR deflection into the app**, is in the scoping document as a later phase and is not demonstrated here.
+
+**Both frames are the same agent, with the same resolution logic and the same components. The only difference is where the customer entered and which modality they are in.** That sentence is the point of the page and it is now on the page, above the frames.
+
+The principle underneath it: a customer is never moved between modalities mid-journey. Someone who starts by typing stays in text and returns to messaging if they need a person. Someone who starts from their bill screen talks, because there was no typing to interrupt.
 
 Each frame runs independently: its own session, its own script, its own replay button, its own end marker. Starting one does not touch the other, and you can run both at once.
 
@@ -22,13 +26,36 @@ Two files, no build step: `index.html` (all HTML, CSS and JavaScript) and this R
 
 **The scripted demo works with nothing connected.** Set `CONFIG.mode` to `"simulated"` and the whole conversation plays from a script with no backend, no token request and no `<ces-messenger>` element on the page.
 
-`CONFIG.mode` is currently `"live"` against a configured deployment. Nothing is created or requested on page load either way; a session only opens when the customer presses **Open my bills**. If the widget cannot be reached, the page falls back — a toast offers **Run scripted demo instead**, which switches to the scripted path without a reload.
+`CONFIG.mode` is currently `"live"` against a configured deployment. Nothing is created or requested on page load either way; a session only opens when the customer presses **Talk to the assistant** in Frame A, or reaches the handover in Frame B. If the widget cannot be reached, the page falls back — a toast offers **Run scripted demo instead**, which switches to the scripted path without a reload.
 
 ## Running the demo
 
-**Frame A.** Tap **Open my bills** in the messaging conversation. The agent turn plays, then a **Next** button appears in the caption strip above the AI bar — customer turns wait for you, so you control the pacing. **Replay A** under the phone resets that frame, including any live session.
+**Frame A (path B, voice).** Opens static on the bills screen with nothing playing — this is a customer looking at their own bill. Press **Talk to the assistant** in the "Get help with this bill" block to start. Because nothing was typed, no prior utterance is passed and the agent opens by greeting and asking what is needed. The agent turn plays, then **Next** appears in the caption strip — customer turns wait for you. **Replay A** returns the frame to the static bills screen.
 
-**Frame B.** Tap **Continue in chat**. The messaging window is replaced where it stands by a full-screen agent surface — nothing navigates and no app opens. In scripted mode the customer's next line is loaded into the composer as a draft: tap the send arrow to play it, which is Frame B's equivalent of Frame A's **Next**. **Replay B** resets that frame.
+**Frame B (path A, text).** Opens behind a **Start demo** overlay. Nothing runs until it is pressed: no scripted messages, no timers, no widget, no session. Pressing it plays the messaging exchange from the first message; then tap **Continue in chat** and the messaging window is replaced where it stands by the assistant. In scripted mode the customer's next line is loaded into the composer as a draft: tap the send arrow to play it. **Replay B** puts the overlay back rather than restarting immediately.
+
+### The start gate
+
+Frame B's overlay exists because the messaging exchange is what explains *why* the customer is being handed over, and it used to play on load — so anyone who did not scroll immediately missed the premise.
+
+It is built as `makeStartGate(gateEl, btnEl, onStart, label)`, scoped to a frame's viewport rather than hardcoded to Frame B, so Frame A can take one later without rework. Frame A does not need one today: pressing its assistant control is already a deliberate start.
+
+That nothing runs behind the gate falls out of the structure rather than being policed — `fbPlayChatScript` is simply not called until it is pressed, and the widget is only ever created further down that path. Confirmed with `?debug`: six seconds after load there are zero messages painted, zero timers armed and zero widget instances.
+
+**If you would rather have one page-level Start covering both frames** for a stakeholder session, that is a one-liner: call both frames' start paths from a single button instead of giving Frame B its own gate. The per-frame version is implemented because it lets the two frames be run independently, which is how they are usually demoed.
+
+### Guidance for someone opening the link cold
+
+The demo used to assume a presenter. Two layers now stand in for one:
+
+- **Per-frame framing**, static, above each phone: which path it is, what the customer did to get there, and which modality.
+- **Four progressive prompts**, appearing in a rail *below* each phone as the conversation reaches specific beats — the bill card rendering, the usage card rendering, the close where the assistant offers nothing, and remediation finally being offered.
+
+The prompts are driven off the component render events and the script's own turn transitions, never off timers, so they land at the same moments in live mode where the conversation can go off-script. Each fires once per run, each can be dismissed with its ×, and a replay clears them.
+
+All of it sits outside the phone frames and is styled as marginalia — muted, dashed rule, numbered — so it cannot be mistaken for product UI.
+
+**Turning it off:** `?nonotes`, or the **Hide notes** button in the controls under the frames. With them off the demo looks exactly as it does today.
 
 The two frames are independent. Run them one after another to talk through each journey, or start both and let them play alongside each other.
 
@@ -61,6 +88,8 @@ This is deliberate and it mirrors the production build. Explaining why a charge 
 ### 3. No asking which bill
 
 "My bill" and "last month's bill" mean the most recent period. The agent fetches it and answers. The old script opened by asking which bill the customer wanted — a round trip for information the request already contained.
+
+In Frame A the customer is holding their own bill screen when they press the assistant, which is why the answer can go straight to the current period. **The obvious next addition is contextual entry**: an "Explain this bill" control against a specific bill that passes that period in the entry context, so the agent opens already knowing which one and skips discovery entirely. The scoping document has it as a later phase, so it is deliberately not built here.
 
 `bill_period_selector` is now scoped to what it is actually for: an earlier bill the customer has not named, or a comparison between periods. It is in the catalogue and rendersable, but the main path never uses it.
 
@@ -291,6 +320,7 @@ Validation, the component schemas and the component builders are shared between 
 | Flag | Effect |
 | --- | --- |
 | `?debug` | Opens the debug panel on load. It logs widget events, tool calls with full arguments, validation results, render outcomes and state transitions for **both** frames, newest first. Frame B's entries are prefixed `[Frame B]`; unprefixed entries are Frame A's. Also on `window.__demoLog`. |
+| `?nonotes` | Hides the progressive prompts entirely, for a presenter-led session. The **Hide notes** button in the controls does the same thing without a reload. |
 | `?phase2` | Makes the phase 2 tactical entry points (**Explain my bill**, **Query this charge**) live rather than inert. They start the agent with `entry_point: "in_app_tactical"` and, where relevant, the charge id. Frame A only — the phase 2 markers live on the bills screen, which Frame B never opens. |
 
 Combine them: `index.html?debug&phase2`.
